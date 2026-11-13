@@ -1,0 +1,14 @@
+{
+  "name": "Ahadi — pledges you can trust",
+  "short_name": "Ahadi",
+  "description": "Collect, track and fulfil pledges for weddings, birthdays, hospital bills and funerals.",
+  "start_url": "/app",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FAF8F4",
+  "theme_color": "#0D5C54",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

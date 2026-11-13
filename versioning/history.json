@@ -1,0 +1,149 @@
+[
+  {
+    "version": "1.0",
+    "date": "12 Nov 2026",
+    "title": "Phase 1 build",
+    "code_saved": false,
+    "changes": [
+      "Built the Ahadi web app (Next.js, TypeScript, PostgreSQL) from the master build prompt: organizer sign-up with SMS code, 4-step event wizard, public event page, 3-screen pledge flow, mobile money / card payments through a built-in test gateway.",
+      "Double-entry ledger: append-only, reversing entries only, webhook-safe and idempotent payments, daily reconciliation.",
+      "Organizer dashboard (progress ring, filters, search), treasurer ledger with cash entries, committee roles (owner / treasurer / viewer), withdrawals with holds, second approver for hospital and funeral events, admin review.",
+      "Exports: CSV, Excel, PDF ledger, one-page event-day report. Receipts as page, PDF and image.",
+      "Reminders with quiet hours (21:00–07:00 Kampala), milestone notices, fraud flags, admin panel (events, flags, payouts, verifications, revenue, settings, reconciliation, audit log).",
+      "Revenue settings editable by admin: transaction fee with 'cover the fee', Event Pass, SMS bundles, optional 'Support Ahadi' tip (off for hospital and funeral events).",
+      "English, Luganda and Kiswahili; installable PWA; works offline without losing typed data.",
+      "Demo data: wedding, hospital and funeral events. UI brochure (HTML and PDF)."
+    ]
+  },
+  {
+    "version": "1.1",
+    "date": "12 Nov 2026",
+    "title": "Login by WhatsApp code, email or Google",
+    "code_saved": false,
+    "changes": [
+      "Phone login: the 6-digit code is sent on WhatsApp, with SMS as automatic fallback.",
+      "Email login: a 6-digit code by email (Resend), or 'Continue with Google'.",
+      "Email / Google users add and verify a phone number before withdrawing; a committee invite for that number joins their account.",
+      "Codes are never stored in plain text or written to the message log."
+    ]
+  },
+  {
+    "version": "1.2",
+    "date": "12 Nov 2026",
+    "title": "Pledger messages move to WhatsApp",
+    "code_saved": false,
+    "changes": [
+      "Pledge confirmations, receipts, reminders, organizer milestones and committee invites are sent on WhatsApp, in the pledger's language (English or Swahili).",
+      "SMS safety net: if WhatsApp refuses or later fails to deliver, the SMS version is sent once.",
+      "12 WhatsApp message templates written for Meta approval (docs/whatsapp-templates.md)."
+    ]
+  },
+  {
+    "version": "1.3",
+    "date": "12–13 Nov 2026",
+    "title": "Homepage showcase and event categories",
+    "code_saved": false,
+    "changes": [
+      "Homepage 'Happening on Ahadi' slideshow with folder tabs: All · Individuals & families · Churches & nonprofits · Companies & schools.",
+      "Organizers choose 'Who is organising?' and can tick 'Show my event on the Ahadi homepage'; admins approve or decline.",
+      "'My events' grouped by folder tabs: All · Celebrations · Support · Community & faith · Closed.",
+      "The homepage hero card shows a real featured event with live progress.",
+      "Fixed a development hot-reload error ('reading call') caused by shared components."
+    ]
+  },
+  {
+    "version": "1.4",
+    "date": "13 Nov 2026",
+    "title": "Returning pledgers and My pledges (optional PIN)",
+    "code_saved": false,
+    "changes": [
+      "Returning pledgers verify their number and see a summary: pledged so far, paid, still to pay, next due date, each pledge's status.",
+      "New 'My pledges' page (/my).",
+      "Optional PIN to protect pledges. (Replaced in v1.5 and removed in v1.6.)"
+    ]
+  },
+  {
+    "version": "1.5",
+    "date": "13 Nov 2026",
+    "title": "Temporary codes and required PIN",
+    "code_saved": false,
+    "changes": [
+      "Temporary codes shown on screen while WhatsApp is not connected (OTP_SHOW_ON_SCREEN); admin panel warns while this is on.",
+      "PIN required for every pledge. (Replaced in v1.6 by a one-time code per pledge.)"
+    ]
+  },
+  {
+    "version": "1.6",
+    "date": "13 Nov 2026",
+    "title": "One-time code for every pledge; no reminder opt-out",
+    "code_saved": false,
+    "changes": [
+      "No permanent PIN: every pledge needs a fresh one-time code sent to the number (WhatsApp; on screen in test mode). One code allows one pledge.",
+      "Pledgers can no longer stop reminders (no button, no STOP replies, no opt-out wording).",
+      "Fixed: going back to an event after a 'pay later' pledge reopened the old pledge."
+    ]
+  },
+  {
+    "version": "1.7",
+    "date": "13 Nov 2026",
+    "title": "Back arrow and account badge on pledger pages",
+    "code_saved": false,
+    "changes": [
+      "'‹ Back' on the pledge, receipt, payment and My pledges pages.",
+      "Account badge with initials, name and masked number on the pledger's own pages."
+    ]
+  },
+  {
+    "version": "1.8",
+    "date": "13 Nov 2026",
+    "title": "A new code every time the portal is entered",
+    "code_saved": false,
+    "changes": [
+      "The pledge form, My pledges and the personal pledge link all need a new code on entry; leaving to an event page or the homepage locks the portal again.",
+      "Personal pledge links show 'Verify it is you' first; the code goes to that pledge's own number (shown masked)."
+    ]
+  },
+  {
+    "version": "1.9",
+    "date": "13 Nov 2026",
+    "title": "Code sending limits",
+    "code_saved": false,
+    "changes": [
+      "No limit while codes are shown on screen (test mode).",
+      "Live: 30 seconds between codes, 10 per 10 minutes and 40 per day per number, all adjustable in Admin → Settings."
+    ]
+  },
+  {
+    "version": "1.10",
+    "date": "13 Nov 2026",
+    "title": "One login, the right portal",
+    "code_saved": false,
+    "changes": [
+      "One login for everyone: numbers that run events go to the organizer dashboard (with a 'My pledges' tab); numbers that only pledge go to the pledger portal; new numbers go to sign-up.",
+      "'Open my events dashboard' shown to verified pledgers who also run events.",
+      "Badges show 'Organizer' or 'Pledger'.",
+      "Back arrow on every page except the homepage."
+    ]
+  },
+  {
+    "version": "1.11",
+    "date": "13 Nov 2026",
+    "title": "My pledges button on event pages",
+    "code_saved": false,
+    "changes": [
+      "Every event page has a 'My pledges' button next to 'Pledge now' / 'Give support'.",
+      "Confirmed the 'Support Ahadi' tip is kept: shown on weddings, birthdays and community events, off for hospital and funeral events."
+    ]
+  },
+  {
+    "version": "1.12",
+    "date": "13 Nov 2026",
+    "title": "My pledges as slides or list",
+    "code_saved": true,
+    "changes": [
+      "My pledges has a Slides / List switch (remembered on the phone).",
+      "Slides: one card per pledge with the organizer's cover photo (or the event's colour banner), status, progress, pledged / paid / still to pay and a Pay / Open button. No auto-play.",
+      "Tapping a pledge opens its page (pay, change pledge, balance, receipts) without a second code during the same visit."
+    ]
+  }
+]
