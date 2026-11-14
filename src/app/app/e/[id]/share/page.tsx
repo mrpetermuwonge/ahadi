@@ -16,10 +16,9 @@ export default async function SharePage({ params, searchParams }: { params: { id
   const { event: e } = await eventForUser(await getDb(), params.id, user, 'viewer');
   const { t } = getT();
   const link = `${APP_URL()}/e/${e.slug}`;
-  const qr = await QRCode.toString(link, { type: 'svg', margin: 1, width: 240, color: { dark: '#0D5C54', light: '#FFFFFF' } });
   const wa = `https://wa.me/?text=${encodeURIComponent(t('share.waText', { title: e.title, link }))}`;
   const isNew = searchParams.new === '1';
-  // A bigger, sharper QR for the pledge card picture.
+  // The QR code lives only on the pledge card picture.
   const cardQr = await QRCode.toString(link, { type: 'svg', margin: 0, width: 600, color: { dark: '#0D5C54', light: '#FFFFFF' } });
   const details = (e.details ?? {}) as Record<string, string>;
   const place = details.venue || details.hospital || details.burialPlace || details.institution || '';
@@ -62,10 +61,6 @@ export default async function SharePage({ params, searchParams }: { params: { id
           saved: t('card.saved'), preparing: t('card.preparing'),
         }}
       />
-      <section className="card p-5 text-center">
-        <p className="font-semibold">{t('share.qr')}</p>
-        <div className="mx-auto mt-3 w-60 h-60 rounded-xl overflow-hidden bg-white p-2" role="img" aria-label={link} dangerouslySetInnerHTML={{ __html: qr }} />
-      </section>
     </div>
   );
 }

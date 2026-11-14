@@ -169,5 +169,15 @@
       "The card is drawn on the phone itself: nothing new is stored on the server and no new library was added. Hospital and funeral events get quiet grey colours instead of gold.",
       "Card wording in English, Swahili and Luganda. The existing WhatsApp link button, Copy link and QR code are unchanged."
     ]
+  },
+  {
+    "version": "1.15",
+    "date": "14 Nov 2026",
+    "title": "QR code only on the pledge card",
+    "code_saved": true,
+    "changes": [
+      "Removed the separate \"QR code - print it or show it at meetings\" box from the Share tab. The QR code now appears only on the pledge card picture, which can be downloaded for printing.",
+      "The Share tab now shows: Share on WhatsApp, Event link with Copy link, and the Pledge card."
+    ]
   }
 ]
