@@ -145,5 +145,16 @@
       "Slides: one card per pledge with the organizer's cover photo (or the event's colour banner), status, progress, pledged / paid / still to pay and a Pay / Open button. No auto-play.",
       "Tapping a pledge opens its page (pay, change pledge, balance, receipts) without a second code during the same visit."
     ]
+  },
+  {
+    "version": "1.13",
+    "date": "14 Nov 2026",
+    "title": "Friendly My pledges for numbers without pledges",
+    "code_saved": true,
+    "changes": [
+      "A verified number with no pledges sees \"You have no pledges yet\" with two next steps: \"Find an event to support\" (jumps to the homepage events) and \"Back to home\".",
+      "The account badge without a name shows the masked number once with a person icon (instead of the number twice and a \"•\").",
+      "My pledges button added to the homepage banner next to \"Start an event\", so it is visible on phones too (the header link only shows on wider screens)."
+    ]
   }
 ]

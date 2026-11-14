@@ -42,6 +42,11 @@ export default async function Landing() {
             <p className="mt-4 text-lg text-muted">{t('landing.sub')}</p>
             <div className="mt-6 flex flex-col sm:flex-row gap-3">
               <Link href={user ? '/app/new' : '/login?next=/app/new'} className="btn-primary text-lg">{t('landing.cta')}</Link>
+              {/* Pledgers' way in, visible on phones too (the header link is hidden on small screens). */}
+              <Link href="/my" className="btn-outline text-lg">
+                <svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 5h11M9 12h11M9 19h11M4 5h.01M4 12h.01M4 19h.01" /></svg>
+                {t('nav.myPledges')}
+              </Link>
             </div>
             <p className="mt-4 text-sm text-muted flex gap-2 items-start">
               <svg aria-hidden className="w-5 h-5 shrink-0 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>

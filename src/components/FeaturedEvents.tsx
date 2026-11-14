@@ -91,7 +91,7 @@ export function FeaturedEvents({ slides }: { slides: Slide[] }) {
   if (slides.length === 0) return null;
 
   return (
-    <section aria-roledescription="carousel" aria-label={t('home.title')} className="mx-auto max-w-5xl px-4 pb-10">
+    <section id="happening" aria-roledescription="carousel" aria-label={t('home.title')} className="mx-auto max-w-5xl px-4 pb-10 scroll-mt-4">
       <div className="flex items-end justify-between gap-3 mb-4">
         <div>
           <h2 className="text-2xl font-bold">{t('home.title')}</h2>
