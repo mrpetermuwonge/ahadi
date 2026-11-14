@@ -9,7 +9,12 @@ import { useEffect, useState } from 'react';
  */
 export interface PledgeCardProps {
   title: string;
-  typeLabel: string;
+  /** Short invitation shown in the chip, matched to the event's tone (not the category name). */
+  invite: string;
+  /** "Organised by …" line, or empty when the organiser has no name on file. */
+  organiser: string;
+  /** "Verified" when Ahadi checked the event's documents, else empty. */
+  verifiedLabel: string;
   dateText: string;
   place: string;
   coverUrl: string | null;
@@ -98,8 +103,19 @@ async function drawCard(p: PledgeCardProps): Promise<Blob> {
   ctx.fillStyle = paper;
   ctx.fillRect(0, 0, W, H);
 
-  // Cover photo (16:9, cropped to fill) or a calm brand gradient.
-  const coverH = 560;
+  const pad = 72;
+  const footerH = 116;
+  const qrSize = 280;
+  const qrY = H - footerH - 50 - qrSize;
+
+  // Measure the text first so the photo gets all the room that is left (no overlap with the QR).
+  ctx.font = `800 68px ${font}`;
+  const titleLines = wrap(ctx, p.title, W - pad * 2, 2);
+  const sub = [p.dateText, p.place].filter(Boolean).join('  ·  ');
+  const textH = 54 + 26 + titleLines.length * 80 + (sub ? 50 : 0) + (p.organiser ? 46 : 0);
+  const coverH = Math.max(380, Math.min(640, qrY - 14 - 40 - textH - 52 - 10));
+
+  // Cover photo, cropped to fill. Portrait photos keep their upper part (where faces usually are).
   let drewCover = false;
   if (p.coverUrl) {
     try {
@@ -107,7 +123,9 @@ async function drawCard(p: PledgeCardProps): Promise<Blob> {
       const scale = Math.max(W / img.width, coverH / img.height);
       const sw = W / scale;
       const sh = coverH / scale;
-      ctx.drawImage(img, (img.width - sw) / 2, (img.height - sh) / 2, sw, sh, 0, 0, W, coverH);
+      const portrait = img.height > img.width * (coverH / W) * 1.15;
+      const sy = (img.height - sh) * (portrait ? 0.18 : 0.5);
+      ctx.drawImage(img, (img.width - sw) / 2, sy, sw, sh, 0, 0, W, coverH);
       drewCover = true;
     } catch { /* fall back to the gradient */ }
   }
@@ -128,41 +146,49 @@ async function drawCard(p: PledgeCardProps): Promise<Blob> {
   ctx.fillStyle = accent;
   ctx.fillRect(0, coverH, W, 10);
 
-  const pad = 72;
-  let y = coverH + 64;
+  let y = coverH + 10 + 52;
 
-  // Type chip.
-  ctx.font = `700 30px ${font}`;
-  ctx.textBaseline = 'middle';
-  const chipW = ctx.measureText(p.typeLabel).width + 48;
-  roundRect(ctx, pad, y, chipW, 54, 27);
-  ctx.fillStyle = '#E3F0EE';
-  ctx.fill();
-  ctx.fillStyle = brand;
-  ctx.fillText(p.typeLabel, pad + 24, y + 28);
-  y += 54 + 34;
+  // Invitation chip ("You're invited to pledge" / "Please stand with us"), plus "Verified" when checked by Ahadi.
+  const chip = (text: string, x: number, bg: string, fg: string) => {
+    ctx.font = `700 30px ${font}`;
+    ctx.textBaseline = 'middle';
+    const w = ctx.measureText(text).width + 48;
+    roundRect(ctx, x, y, w, 54, 27);
+    ctx.fillStyle = bg;
+    ctx.fill();
+    ctx.fillStyle = fg;
+    ctx.fillText(text, x + 24, y + 28);
+    return w;
+  };
+  const chipW = chip(p.invite, pad, '#E3F0EE', brand);
+  if (p.verifiedLabel) chip(`✓ ${p.verifiedLabel}`, pad + chipW + 14, '#E2F3E7', '#1E7A3C');
+  y += 54 + 26;
 
   // Title (up to 2 lines).
   ctx.textBaseline = 'top';
   ctx.fillStyle = ink;
   ctx.font = `800 68px ${font}`;
-  for (const line of wrap(ctx, p.title, W - pad * 2, 2)) {
+  for (const line of titleLines) {
     ctx.fillText(line, pad, y);
     y += 80;
   }
   // Date · place.
-  const sub = [p.dateText, p.place].filter(Boolean).join('  ·  ');
   if (sub) {
     y += 6;
     ctx.fillStyle = muted;
     ctx.font = `500 36px ${font}`;
     ctx.fillText(wrap(ctx, sub, W - pad * 2, 1)[0]!, pad, y);
+    y += 44;
+  }
+  // Who is asking: people trust a card more when they can see who is behind it.
+  if (p.organiser) {
+    y += 6;
+    ctx.fillStyle = muted;
+    ctx.font = `600 32px ${font}`;
+    ctx.fillText(wrap(ctx, p.organiser, W - pad * 2, 1)[0]!, pad, y);
   }
 
   // QR + how to pledge, anchored above the footer.
-  const footerH = 116;
-  const qrSize = 300;
-  const qrY = H - footerH - 56 - qrSize;
   roundRect(ctx, pad - 14, qrY - 14, qrSize + 28, qrSize + 28, 24);
   ctx.fillStyle = '#FFFFFF';
   ctx.fill();
@@ -240,7 +266,7 @@ export function PledgeCard(p: PledgeCardProps) {
     };
     // Redraw only when what is on the card changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [p.title, p.typeLabel, p.dateText, p.place, p.coverUrl, p.qrSvg, p.link, p.sombre]);
+  }, [p.title, p.invite, p.organiser, p.verifiedLabel, p.dateText, p.place, p.coverUrl, p.qrSvg, p.link, p.sombre]);
 
   function download() {
     if (!blob) return;

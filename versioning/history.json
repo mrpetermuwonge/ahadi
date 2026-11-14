@@ -179,5 +179,19 @@
       "Removed the separate \"QR code - print it or show it at meetings\" box from the Share tab. The QR code now appears only on the pledge card picture, which can be downloaded for printing.",
       "The Share tab now shows: Share on WhatsApp, Event link with Copy link, and the Pledge card."
     ]
+  },
+  {
+    "version": "1.16",
+    "date": "14 Nov 2026",
+    "title": "Better pledge card: photo framing, invitation and trust details",
+    "code_saved": true,
+    "changes": [
+      "Portrait cover photos are framed from the upper part, so faces and heads are no longer cut off on the pledge card.",
+      "The photo area now grows or shrinks to fit the text, so long event names never run into the QR code.",
+      "The category chip (e.g. \"Birthday & graduation\") is replaced by a short invitation matched to the event: \"You're invited to pledge\" (celebrations), \"Join us, make a pledge\" (community and other) and \"Please stand with us\" (hospital and funeral).",
+      "\"Organised by {name}\" appears on the card when the organiser has a name on their account, so people can see who is asking.",
+      "A green \"Verified\" chip appears on the card for events whose documents Ahadi has checked.",
+      "New wording in English, Swahili and Luganda."
+    ]
   }
 ]

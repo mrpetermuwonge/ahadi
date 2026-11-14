@@ -8,7 +8,6 @@ import { Alert, CopyButton } from '@/components/Ui';
 import { ShareConfetti } from './ShareConfetti';
 import { EVENT_TYPES, isSombre, type EventType } from '@/lib/eventTypes';
 import { formatDate } from '@/lib/time';
-import type { Key } from '@/i18n';
 import { PledgeCard } from './PledgeCard';
 
 export default async function SharePage({ params, searchParams }: { params: { id: string }; searchParams: { new?: string } }) {
@@ -21,6 +20,10 @@ export default async function SharePage({ params, searchParams }: { params: { id
   // The QR code lives only on the pledge card picture.
   const cardQr = await QRCode.toString(link, { type: 'svg', margin: 0, width: 600, color: { dark: '#0D5C54', light: '#FFFFFF' } });
   const details = (e.details ?? {}) as Record<string, string>;
+  const [owner] = await (await getDb()).query('SELECT name FROM users WHERE id=$1', [e.created_by]);
+  const ownerName: string = (owner?.name ?? '').trim();
+  const tone = EVENT_TYPES[e.type as EventType]?.tone ?? 'neutral';
+  const invite = isSombre(e.type as EventType) ? t('card.inviteSombre') : tone === 'neutral' ? t('card.inviteSupport') : t('card.invite');
   const place = details.venue || details.hospital || details.burialPlace || details.institution || '';
   return (
     <div className="space-y-4">
@@ -46,7 +49,9 @@ export default async function SharePage({ params, searchParams }: { params: { id
       </section>
       <PledgeCard
         title={e.title}
-        typeLabel={t(`type.${e.type}` as Key)}
+        invite={invite}
+        organiser={ownerName ? t('card.by', { name: ownerName }) : ''}
+        verifiedLabel={e.verified ? t('ev.verified') : ''}
         dateText={e.event_date ? formatDate(e.event_date) : ''}
         place={place}
         coverUrl={e.cover_file_id ? `/api/files/${e.cover_file_id}` : null}
