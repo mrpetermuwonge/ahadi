@@ -156,5 +156,18 @@
       "The account badge without a name shows the masked number once with a person icon (instead of the number twice and a \"•\").",
       "My pledges button added to the homepage banner next to \"Start an event\", so it is visible on phones too (the header link only shows on wider screens)."
     ]
+  },
+  {
+    "version": "1.14",
+    "date": "14 Nov 2026",
+    "title": "Shareable pledge card for WhatsApp",
+    "code_saved": true,
+    "changes": [
+      "New \"Pledge card\" on the organizer's Share tab: a ready-made picture with the event cover (or a branded gradient), event type, name, date and place, a QR code, the link and \"Pay by MTN, Airtel or card\".",
+      "\"Share card on WhatsApp\" opens the phone's share sheet with the picture and the invite text, so it can go to chats, groups or status. On computers and older phones it saves the picture instead, to attach in WhatsApp.",
+      "\"Download card\" saves the picture (1080 x 1350, sized for WhatsApp and status) for printing or sending later.",
+      "The card is drawn on the phone itself: nothing new is stored on the server and no new library was added. Hospital and funeral events get quiet grey colours instead of gold.",
+      "Card wording in English, Swahili and Luganda. The existing WhatsApp link button, Copy link and QR code are unchanged."
+    ]
   }
 ]

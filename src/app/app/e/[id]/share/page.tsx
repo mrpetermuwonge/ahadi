@@ -6,7 +6,10 @@ import { getT } from '@/i18n/server';
 import { APP_URL } from '@/lib/config';
 import { Alert, CopyButton } from '@/components/Ui';
 import { ShareConfetti } from './ShareConfetti';
-import { EVENT_TYPES, type EventType } from '@/lib/eventTypes';
+import { EVENT_TYPES, isSombre, type EventType } from '@/lib/eventTypes';
+import { formatDate } from '@/lib/time';
+import type { Key } from '@/i18n';
+import { PledgeCard } from './PledgeCard';
 
 export default async function SharePage({ params, searchParams }: { params: { id: string }; searchParams: { new?: string } }) {
   const user = await requireUser();
@@ -16,6 +19,10 @@ export default async function SharePage({ params, searchParams }: { params: { id
   const qr = await QRCode.toString(link, { type: 'svg', margin: 1, width: 240, color: { dark: '#0D5C54', light: '#FFFFFF' } });
   const wa = `https://wa.me/?text=${encodeURIComponent(t('share.waText', { title: e.title, link }))}`;
   const isNew = searchParams.new === '1';
+  // A bigger, sharper QR for the pledge card picture.
+  const cardQr = await QRCode.toString(link, { type: 'svg', margin: 0, width: 600, color: { dark: '#0D5C54', light: '#FFFFFF' } });
+  const details = (e.details ?? {}) as Record<string, string>;
+  const place = details.venue || details.hospital || details.burialPlace || details.institution || '';
   return (
     <div className="space-y-4">
       {isNew && (
@@ -38,6 +45,23 @@ export default async function SharePage({ params, searchParams }: { params: { id
           </div>
         </div>
       </section>
+      <PledgeCard
+        title={e.title}
+        typeLabel={t(`type.${e.type}` as Key)}
+        dateText={e.event_date ? formatDate(e.event_date) : ''}
+        place={place}
+        coverUrl={e.cover_file_id ? `/api/files/${e.cover_file_id}` : null}
+        qrSvg={cardQr}
+        link={link}
+        sombre={isSombre(e.type as EventType)}
+        fileName={`ahadi-${e.slug}.png`}
+        shareText={t('share.waText', { title: e.title, link })}
+        labels={{
+          heading: t('card.heading'), hint: t('card.hint'), scan: t('card.scan'), orOpen: t('card.orOpen'),
+          pay: t('card.pay'), tagline: t('card.tagline'), share: t('card.share'), download: t('card.download'),
+          saved: t('card.saved'), preparing: t('card.preparing'),
+        }}
+      />
       <section className="card p-5 text-center">
         <p className="font-semibold">{t('share.qr')}</p>
         <div className="mx-auto mt-3 w-60 h-60 rounded-xl overflow-hidden bg-white p-2" role="img" aria-label={link} dangerouslySetInnerHTML={{ __html: qr }} />
