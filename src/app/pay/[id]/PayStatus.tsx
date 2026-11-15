@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useT } from '@/components/I18n';
 import { Alert, Confetti } from '@/components/Ui';
@@ -54,12 +55,12 @@ export function PayStatus({ initial, createdAt, timeoutSec, backHref, isPledge, 
         <div className="mx-auto w-16 h-16 rounded-full bg-ok/15 text-ok flex items-center justify-center text-3xl" aria-hidden>✓</div>
         <h1 className="text-2xl font-bold mt-3" role="status">{t('pay.success')}</h1>
         <p className="text-muted mt-1">{fmtMoney(p.charged, p.currency)} · {eventTitle}</p>
-        {isPledge && <a href={`/r/${p.receiptNo}`} className="btn-primary w-full mt-6">{t('pay.viewReceipt')}</a>}
+        {isPledge && <Link href={`/r/${p.receiptNo}`} className="btn-primary w-full mt-6">{t('pay.viewReceipt')}</Link>}
         <a href={backHref} className="btn-ghost w-full mt-2">{isPledge ? t('pay.backToPledge') : t('a.back')}</a>
         {isPledge && <div className="mt-6 rounded-xl bg-accent-soft p-4 text-left">
           <p className="font-bold">{t('grow.title')}</p>
           <p className="text-sm text-muted">{t('grow.text')}</p>
-          <a href="/login?next=/app/new" className="btn-outline w-full mt-3">{t('grow.cta')}</a>
+          <Link href="/login?next=/app/new" className="btn-outline w-full mt-3">{t('grow.cta')}</Link>
         </div>}
       </div>
     );

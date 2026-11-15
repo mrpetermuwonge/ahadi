@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useT } from '@/components/I18n';
 import { OrganizerLink, PledgeSummary, VerifyPanel, usePledgerMe } from '@/components/PledgerAccess';
 import { PledgerBadge } from '@/components/PledgerBadge';
@@ -30,8 +31,8 @@ export function MyPledges() {
           <h1 className="text-xl font-bold mt-3">{t('mine.emptyTitle')}</h1>
           <p className="text-muted text-sm mt-1">{t('mine.emptyText')}</p>
           <div className="grid gap-2 mt-5">
-            <a href="/#happening" className="btn-accent">{t('mine.findEvent')}</a>
-            <a href="/" className="btn-outline">{t('mine.backHome')}</a>
+            <Link href="/#happening" className="btn-accent">{t('mine.findEvent')}</Link>
+            <Link href="/" className="btn-outline">{t('mine.backHome')}</Link>
           </div>
         </section>
       ) : (

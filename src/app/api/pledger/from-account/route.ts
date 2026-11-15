@@ -20,3 +20,6 @@ export async function GET() {
   });
   return res;
 }
+
+// Reads cookies and signs in: must never be pre-rendered at build time.
+export const dynamic = 'force-dynamic';

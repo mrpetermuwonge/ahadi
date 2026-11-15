@@ -205,6 +205,52 @@ export async function updateEventSettings(
   await audit(db, { actor, action: 'event.settings', entityType: 'event', entityId: eventId, eventId, details: s });
 }
 
+export interface EventDetailsInput {
+  title: string;
+  eventDate: string | null;
+  targetAmount: number | null;
+  story: string;
+  coverFileId: string | null;
+  details: Record<string, string>;
+}
+
+/**
+ * Edit what people see on the event page (owner only). The link (slug) never changes, so shared links,
+ * QR codes and pledge cards keep working. The before/after values go to the audit log, which matters most
+ * for verified hospital/funeral events: an admin can see exactly what changed after verification.
+ */
+export async function updateEventDetails(db: Db, eventId: string, actor: string, d: EventDetailsInput) {
+  const [e] = await db.query('SELECT * FROM events WHERE id=$1', [eventId]);
+  if (!e) throw new EventError('not_found');
+  const tpl = EVENT_TYPES[e.type as EventType];
+  const title = d.title.trim();
+  if (title.length < 3 || title.length > 100) throw new EventError('invalid_title');
+  if (d.targetAmount !== null && (!Number.isSafeInteger(d.targetAmount) || d.targetAmount <= 0)) throw new EventError('invalid_amount');
+  const details: Record<string, string> = {};
+  for (const f of tpl.fields) {
+    const v = String(d.details[f.key] ?? '').trim().slice(0, 200);
+    if (v) details[f.key] = v;
+  }
+  return db.tx(async (q) => {
+    // A new cover must be the actor's own upload; it then becomes public like any cover.
+    let cover = e.cover_file_id as string | null;
+    if (d.coverFileId && d.coverFileId !== cover) {
+      const [f] = await q.query(`SELECT id FROM files WHERE id=$1 AND owner_user_id=$2 AND mime LIKE 'image/%'`, [d.coverFileId, actor]);
+      if (!f) throw new EventError('invalid_input');
+      await q.query('UPDATE files SET is_public=true WHERE id=$1', [d.coverFileId]);
+      cover = d.coverFileId;
+    }
+    const [row] = await q.query(
+      `UPDATE events SET title=$2, event_date=$3, target_amount=$4, story=$5, cover_file_id=$6, details=$7 WHERE id=$1 RETURNING *`,
+      [eventId, title, d.eventDate || null, d.targetAmount, d.story.slice(0, 4000), cover, JSON.stringify(details)],
+    );
+    const before = { title: e.title, eventDate: e.event_date, targetAmount: e.target_amount, story: e.story, cover: e.cover_file_id, details: e.details };
+    const after = { title, eventDate: d.eventDate || null, targetAmount: d.targetAmount, story: d.story.slice(0, 4000), cover, details };
+    await audit(q, { actor, action: 'event.details', entityType: 'event', entityId: eventId, eventId, details: { before, after, wasVerified: !!e.verified } });
+    return row;
+  });
+}
+
 export type HomeStatus = 'off' | 'pending' | 'live' | 'declined';
 export function homeStatus(e: { show_on_home: boolean; home_approved: boolean | null }, requiresApproval: boolean): HomeStatus {
   if (!e.show_on_home) return 'off';

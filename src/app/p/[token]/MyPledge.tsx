@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useT } from '@/components/I18n';
@@ -131,7 +132,7 @@ export function MyPledge({ token, data, fee, tips }: { token: string; data: Data
         </button>
       </section>
 
-      <a href={`/e/${data.slug}`} className="btn-ghost w-full">{data.title}</a>
+      <Link href={`/e/${data.slug}`} className="btn-ghost w-full">{data.title}</Link>
     </div>
   );
 }

@@ -193,5 +193,22 @@
       "A green \"Verified\" chip appears on the card for events whose documents Ahadi has checked.",
       "New wording in English, Swahili and Luganda."
     ]
+  },
+  {
+    "version": "1.17",
+    "date": "15 Nov 2026",
+    "title": "Health check fixes: deployable build, faster feel, event editing, account name, automatic reminders",
+    "code_saved": true,
+    "changes": [
+      "Fixed: the production build failed on the \"Open my events dashboard\" and \"My pledges\" switch links (they were pre-rendered at build time). The app can now be built for a real server.",
+      "Fixed: amounts of zero could show as \"UGX -0\" on My events.",
+      "New friendly error screen (\"Something went wrong. Nothing was lost.\") with Try again, Back and Home, plus a plain last-resort screen if the whole app fails.",
+      "Loading placeholders (grey blocks) appear at once when moving between pages, so taps never look frozen on slow networks.",
+      "Smoother navigation: receipt, event and \"Back to home\" links switch pages without a full reload. Links that start or end a pledger session are unchanged.",
+      "Organizers can edit an event after creating it: Settings → Event details (cover photo, title, date, place details, target, story). The event link never changes, so shared links, QR codes and pledge cards keep working. Every change is recorded in the audit log with before/after values; verified events show a note that changes may be reviewed.",
+      "New My account page (tap your badge): set your name, see the phone/email you log in with. My events asks once for a name if none is set, so \"Organised by\" can appear on pledge cards.",
+      "Reminders and payment checks now run automatically inside the server (INTERNAL_CRON=true): payments every 2 minutes, reminders every 15 minutes, reconciliation daily at 02:00 Kampala.",
+      "New TODO.md lists what must be done before real users (on-screen codes off, real web address, cron secret, WhatsApp and payment providers, hosted database)."
+    ]
   }
 ]

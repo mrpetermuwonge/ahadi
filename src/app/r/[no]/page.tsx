@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { receiptData } from '@/lib/services/receipts';
 import { getT } from '@/i18n/server';
@@ -50,7 +51,7 @@ export default async function ReceiptPage({ params }: { params: { no: string } }
             heading={`Ahadi · ${t('rc.title')}`}
             amount={formatMoney(Number(r.pledge_credit), r.currency)}
           />
-          <a href={`/e/${r.slug}`} className="btn-ghost w-full mt-2">{r.title}</a>
+          <Link href={`/e/${r.slug}`} className="btn-ghost w-full mt-2">{r.title}</Link>
         </div>
       </main>
     </div>

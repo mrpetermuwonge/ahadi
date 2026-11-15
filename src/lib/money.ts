@@ -3,7 +3,8 @@ import { countryForCurrency } from './countries';
 /** Format an integer amount in minor units: formatMoney(50000, 'UGX') -> "UGX 50,000" */
 export function formatMoney(amount: number, currency = 'UGX'): string {
   const { minorUnits } = countryForCurrency(currency);
-  const value = amount / 10 ** minorUnits;
+  // `+ 0` turns -0 (from ledger sums like -(0)) into 0, so nobody ever sees "UGX -0".
+  const value = (Number(amount) || 0) / 10 ** minorUnits + 0;
   const s = value.toLocaleString('en-US', {
     minimumFractionDigits: minorUnits,
     maximumFractionDigits: minorUnits,

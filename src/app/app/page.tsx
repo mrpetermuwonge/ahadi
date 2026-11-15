@@ -9,6 +9,7 @@ import { EVENT_GROUPS, toneClass, type EventType } from '@/lib/eventTypes';
 import { FolderTabs, type FolderColor, type FolderTab } from '@/components/FolderTabs';
 import { TypeIcon } from '@/components/Brand';
 import type { Key } from '@/i18n';
+import { NameForm } from './account/NameForm';
 
 export const metadata = { title: 'My events' };
 
@@ -45,6 +46,14 @@ export default async function MyEventsPage({ searchParams }: { searchParams: { t
         <h1 className="text-2xl font-bold">{t('dash.myEvents')}</h1>
         <Link href="/app/new" className="btn-primary min-h-[44px]">+ {t('nav.new')}</Link>
       </div>
+      {!user.name && (
+        // A name makes pledge cards and the badge trustworthy ("Organised by Peter M."), so ask once, gently.
+        <section className="card p-5 mt-4 border-2 border-accent/50">
+          <p className="font-semibold">{t('acct.nudgeTitle')}</p>
+          <p className="text-sm text-muted mt-1 mb-3">{t('acct.nudgeText')}</p>
+          <NameForm initial="" compact />
+        </section>
+      )}
       {all.length === 0 ? (
         <div className="card p-8 mt-6 text-center">
           <svg aria-hidden className="mx-auto w-24 h-24 text-accent" viewBox="0 0 96 96" fill="none" stroke="currentColor" strokeWidth="3">

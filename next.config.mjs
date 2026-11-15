@@ -3,6 +3,8 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   experimental: {
+    // Runs src/instrumentation.ts at server start (built-in job scheduler, see INTERNAL_CRON).
+    instrumentationHook: true,
     // These run only on the server and must not be bundled.
     serverComponentsExternalPackages: ['@electric-sql/pglite', 'pg', 'exceljs', 'pdf-lib', 'qrcode'],
   },

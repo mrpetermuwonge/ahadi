@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getDb } from '@/lib/db';
 import { audit } from '@/lib/audit';
 import { newId } from '@/lib/ids';
-import { addMember, EventError, eventForUser, removeMember, updateEventSettings } from '@/lib/services/events';
+import { addMember, EventError, eventForUser, removeMember, updateEventDetails, updateEventSettings } from '@/lib/services/events';
 import { decideChangeRequest, organizerChangeAmount, recordManualPayment, reverseManualEntry } from '@/lib/services/pledges';
 import { requestPayout, secondApprove } from '@/lib/services/payouts';
 import { startPurchase } from '@/lib/services/payments';
@@ -25,6 +25,7 @@ const NEEDS: Record<string, Role> = {
   'add-member': 'owner',
   'remove-member': 'owner',
   settings: 'owner',
+  details: 'owner',
   'request-payout': 'owner',
   'second-approve': 'treasurer',
   'buy-pass': 'owner',
@@ -85,6 +86,18 @@ export const POST = api(async (req, { params }: { params: { id: string; action: 
     case 'remove-member': {
       const b = z.object({ userId: z.string() }).parse(body);
       await removeMember(db, event.id, user.id, b.userId);
+      break;
+    }
+    case 'details': {
+      const b = z.object({
+        title: z.string().max(100),
+        eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+        targetAmount: z.number().int().positive().max(1e13).nullable(),
+        story: z.string().max(4000),
+        coverFileId: z.string().max(40).nullable(),
+        details: z.record(z.string().max(200)),
+      }).parse(body);
+      await updateEventDetails(db, event.id, user.id, b);
       break;
     }
     case 'settings': {

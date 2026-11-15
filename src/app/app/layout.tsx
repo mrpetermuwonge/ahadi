@@ -35,9 +35,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </header>
       <div className="mx-auto max-w-3xl px-4 pt-2 flex items-center justify-between gap-3">
         <AppBack />
-        <div className="ml-auto">
+        {/* Tap the badge to open My account (set your name there). */}
+        <Link href="/app/account" className="ml-auto tap rounded-xl -mr-1 px-1 py-0.5 hover:bg-brand-soft" aria-label={t('acct.title')}>
           <PledgerBadge name={user.name ?? user.phone ?? user.email ?? ''} phone={user.phone ?? user.email ?? ''} label={t('badge.organizer')} tag={t('badge.organizer')} />
-        </div>
+        </Link>
       </div>
       <main className="mx-auto max-w-3xl px-4 py-4">{children}</main>
       <nav aria-label="Main" className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-card border-t border-line pb-[env(safe-area-inset-bottom)]">
