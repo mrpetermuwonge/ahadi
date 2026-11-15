@@ -210,5 +210,17 @@
       "Reminders and payment checks now run automatically inside the server (INTERNAL_CRON=true): payments every 2 minutes, reminders every 15 minutes, reconciliation daily at 02:00 Kampala.",
       "New TODO.md lists what must be done before real users (on-screen codes off, real web address, cron secret, WhatsApp and payment providers, hosted database)."
     ]
+  },
+  {
+    "version": "1.18",
+    "date": "15 Nov 2026",
+    "title": "No money amounts on homepage event cards",
+    "code_saved": true,
+    "changes": [
+      "Homepage \"Happening on Ahadi\" cards and the featured hero card no longer show the amount raised, the target or a progress bar. They show the event date and the number of supporters instead.",
+      "The amounts are removed from the homepage data itself, not just hidden, so they cannot be read from the page source either.",
+      "The featured hero card is now the celebration with the most supporters (it used to be the one closest to its target).",
+      "The event page itself still shows progress to the people who open it."
+    ]
   }
 ]

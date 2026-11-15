@@ -266,9 +266,6 @@ export interface FeaturedEvent {
   organizerKind: OrganizerKind;
   coverFileId: string | null;
   eventDate: string | null;
-  currency: string;
-  collected: number;
-  target: number | null;
   pledgeCount: number;
   verified: boolean;
   urgent: boolean;
@@ -276,7 +273,8 @@ export interface FeaturedEvent {
 
 /**
  * Events for the homepage slideshow: the owner opted in, Ahadi approved (unless review is off), still open.
- * Only public information is returned: title, photo, type, progress. Never names, phones or messages.
+ * Only public information is returned: title, photo, type, date and number of supporters.
+ * No money amounts (raised or target): those stay on the event page. Never names, phones or messages.
  */
 export async function featuredEvents(db: Db): Promise<FeaturedEvent[]> {
   const s = await getSettings(db);
@@ -290,7 +288,7 @@ export async function featuredEvents(db: Db): Promise<FeaturedEvent[]> {
     const t = await eventTotals(db, e.id);
     return {
       slug: e.slug, title: e.title, type: e.type, organizerKind: e.organizer_kind, coverFileId: e.cover_file_id,
-      eventDate: e.event_date, currency: e.currency, collected: t.collected, target: e.target_amount ? Number(e.target_amount) : null,
+      eventDate: e.event_date ? localDate(new Date(e.event_date)) : null,
       pledgeCount: t.pledgeCount, verified: e.verified, urgent: e.urgent,
     };
   }));

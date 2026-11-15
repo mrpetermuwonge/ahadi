@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useT } from './I18n';
 import { FolderTabs, type FolderTab } from './FolderTabs';
 import { TypeIcon } from './Brand';
-import { fmtMoney } from './client-utils';
 
 export interface Slide {
   slug: string;
@@ -11,9 +10,8 @@ export interface Slide {
   type: string;
   organizerKind: string;
   coverFileId: string | null;
-  currency: string;
-  collected: number;
-  target: number | null;
+  /** Already formatted for display, e.g. "31 Mar 2027". */
+  dateText: string | null;
   pledgeCount: number;
   verified: boolean;
   urgent: boolean;
@@ -125,7 +123,6 @@ export function FeaturedEvents({ slides }: { slides: Slide[] }) {
               aria-live={playing && !hold ? 'off' : 'polite'}
             >
               {shown.map((s, i) => {
-                const pct = s.target ? Math.min(100, Math.round((s.collected / s.target) * 100)) : null;
                 return (
                   <a
                     key={s.slug}
@@ -151,13 +148,13 @@ export function FeaturedEvents({ slides }: { slides: Slide[] }) {
                       </div>
                       <h3 className="font-bold text-lg leading-snug mt-2 line-clamp-2 min-h-[3.2rem]">{s.title}</h3>
                       <p className="text-xs text-muted">{t(`who.${s.organizerKind}` as any)}</p>
-                      <div className="mt-3 h-2 rounded-full bg-line overflow-hidden">
-                        <div className="h-full bg-brand rounded-full" style={{ width: `${pct ?? 100}%` }} />
-                      </div>
-                      <p className="mt-2 text-sm">
-                        <b>{t('home.raised', { amount: fmtMoney(s.collected, s.currency) })}</b>{' '}
-                        {s.target && <span className="text-muted">{t('home.of', { target: fmtMoney(s.target, s.currency) })}</span>}
-                      </p>
+                      {/* No money on public cards: just when it is and how many people support it. */}
+                      {s.dateText && (
+                        <p className="mt-3 text-sm flex items-center gap-1.5">
+                          <svg aria-hidden width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="text-brand"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>
+                          {s.dateText}
+                        </p>
+                      )}
                       <div className="mt-3 flex items-center justify-between">
                         <span className="text-xs text-muted">{t('home.supporters', { n: s.pledgeCount })}</span>
                         <span className="text-sm font-bold text-brand">{t('home.see')} →</span>

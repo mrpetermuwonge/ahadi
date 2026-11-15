@@ -10,19 +10,18 @@ import { EndPledgerSession } from '@/components/PledgerAccess';
 import { featuredEvents } from '@/lib/services/events';
 import { getDb } from '@/lib/db';
 import { EVENT_TYPES, isSombre, toneClass } from '@/lib/eventTypes';
-import { formatMoney } from '@/lib/money';
+import { formatDate } from '@/lib/time';
 
 export default async function Landing() {
   const { t } = getT();
   const user = await currentUser();
   // Events whose owners chose to be shown here (and Ahadi approved). Hidden entirely when there are none.
-  const slides = await featuredEvents(await getDb());
-  // Hero card: the featured celebration furthest towards its target (uplifting first impression),
-  // else any featured event. Progress is measured against the target, or pledges when there is none.
-  const progress = (e: (typeof slides)[number]) => (e.target ? e.collected / e.target : 0);
+  const events = await featuredEvents(await getDb());
+  // Public cards carry no money amounts: only the date and how many people support the event.
+  const slides = events.map((e) => ({ ...e, dateText: e.eventDate ? formatDate(e.eventDate) : null }));
+  // Hero card: the featured celebration with the most supporters (uplifting first impression), else any featured event.
   const pool = slides.filter((e) => !isSombre(e.type));
-  const hero = [...(pool.length ? pool : slides)].sort((a, b) => progress(b) - progress(a))[0] ?? null;
-  const heroPct = hero?.target ? Math.min(100, Math.round(progress(hero) * 100)) : null;
+  const hero = [...(pool.length ? pool : slides)].sort((a, b) => b.pledgeCount - a.pledgeCount)[0] ?? null;
   const types = ['wedding', 'birthday', 'hospital', 'funeral', 'community'] as const;
   return (
     <div className="min-h-screen flex flex-col">
@@ -73,12 +72,9 @@ export default async function Landing() {
                 </div>
                 <h2 className="text-xl font-bold mt-2 leading-snug">{hero.title}</h2>
                 <p className="text-sm text-muted">{t(`who.${hero.organizerKind}` as Key)}</p>
-                <div className="mt-4 h-3 rounded-full bg-line overflow-hidden">
-                  <div className="h-full bg-brand rounded-full" style={{ width: `${heroPct ?? 100}%` }} />
-                </div>
-                <div className="mt-2 flex justify-between text-sm">
-                  <b>{t('home.raised', { amount: formatMoney(hero.collected, hero.currency) })}</b>
-                  {hero.target && <span className="text-muted">{t('home.of', { target: formatMoney(hero.target, hero.currency) })}</span>}
+                <div className="mt-3 flex justify-between text-sm text-muted">
+                  <span>{hero.dateText ?? ''}</span>
+                  <span>{t('home.supporters', { n: hero.pledgeCount })}</span>
                 </div>
                 <div className="btn-accent w-full mt-4">{t(`noun.${EVENT_TYPES[hero.type].noun}.verb` as Key)}</div>
               </div>
