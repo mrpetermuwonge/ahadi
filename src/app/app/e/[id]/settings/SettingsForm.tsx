@@ -9,7 +9,7 @@ import { ORGANIZER_KINDS } from '@/lib/eventTypes';
 
 interface Props {
   eventId: string;
-  initial: { privacy: string; offsets: string; status: string; tipsEnabled: boolean; showOnHome: boolean; organizerKind: string };
+  initial: { privacy: string; offsets: string; status: string; tipsEnabled: boolean; showOnHome: boolean; organizerKind: string; showAmounts: boolean };
   homeStatus: 'off' | 'pending' | 'live' | 'declined';
   sombre: boolean;
   plan: { hasPass: boolean; freeMax: number; passPrice: string; credits: number; bundleSize: number; bundlePrice: string };
@@ -32,7 +32,7 @@ export function SettingsForm({ eventId, initial, homeStatus, sombre, plan, verif
     e.preventDefault();
     setBusy(true);
     const offsets = s.offsets.split(/[,\s]+/).filter(Boolean).map(Number).filter((n) => Number.isInteger(n));
-    const r = await apiSend(`/api/events/${eventId}/settings`, { privacy: s.privacy, reminderOffsets: offsets, status: s.status, tipsEnabled: s.tipsEnabled, showOnHome: s.showOnHome, organizerKind: s.organizerKind });
+    const r = await apiSend(`/api/events/${eventId}/settings`, { privacy: s.privacy, reminderOffsets: offsets, status: s.status, tipsEnabled: s.tipsEnabled, showOnHome: s.showOnHome, organizerKind: s.organizerKind, showAmounts: s.showAmounts });
     setBusy(false);
     if (!r.ok) return fail(r.error);
     setMsg({ kind: 'ok', text: t('set.saved') });
@@ -93,6 +93,10 @@ export function SettingsForm({ eventId, initial, homeStatus, sombre, plan, verif
             {t(`set.home.${homeStatus}` as any)}
           </p>
         </fieldset>
+        <label className="flex gap-3 items-start rounded-xl border-2 border-line p-3 cursor-pointer">
+          <input type="checkbox" className="mt-1 w-5 h-5 shrink-0" checked={s.showAmounts} onChange={(e) => setS({ ...s, showAmounts: e.target.checked })} />
+          <span><span className="font-semibold block">{t('set.showAmounts')}</span><span className="text-sm text-muted">{t('set.showAmountsHint')}</span></span>
+        </label>
         <div>
           <label className="label" htmlFor="offs">{t('set.reminders')}</label>
           <input id="offs" className="input" value={s.offsets} onChange={(e) => setS({ ...s, offsets: e.target.value })} />

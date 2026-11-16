@@ -107,6 +107,7 @@ export const POST = api(async (req, { params }: { params: { id: string; action: 
         status: z.enum(['active', 'closed']).optional(),
         tipsEnabled: z.boolean().optional(),
         showOnHome: z.boolean().optional(),
+        showAmounts: z.boolean().optional(),
         organizerKind: z.enum(['individual', 'group', 'faith', 'nonprofit', 'company', 'school']).optional(),
       }).parse(body);
       await updateEventSettings(db, event.id, user.id, b);

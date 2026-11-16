@@ -31,7 +31,7 @@ export default async function SettingsPage({ params }: { params: { id: string } 
     />
     <SettingsForm
       eventId={e.id}
-      initial={{ privacy: e.privacy, offsets: (e.reminder_offsets as number[]).join(', '), status: e.status, tipsEnabled: e.tips_enabled, showOnHome: e.show_on_home, organizerKind: e.organizer_kind }}
+      initial={{ privacy: e.privacy, offsets: (e.reminder_offsets as number[]).join(', '), status: e.status, tipsEnabled: e.tips_enabled, showOnHome: e.show_on_home, organizerKind: e.organizer_kind, showAmounts: e.show_amounts !== false }}
       homeStatus={homeStatus(e, s.home_requires_approval)}
       sombre={isSombre(e.type)}
       plan={{

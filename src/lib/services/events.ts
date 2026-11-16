@@ -180,7 +180,7 @@ export async function updateEventSettings(
   db: Db,
   eventId: string,
   actor: string,
-  s: { privacy?: string; reminderOffsets?: number[]; status?: string; tipsEnabled?: boolean; showOnHome?: boolean; organizerKind?: string },
+  s: { privacy?: string; reminderOffsets?: number[]; status?: string; tipsEnabled?: boolean; showOnHome?: boolean; organizerKind?: string; showAmounts?: boolean },
 ) {
   if (s.organizerKind && !(ORGANIZER_KINDS as readonly string[]).includes(s.organizerKind)) throw new EventError('invalid');
   if (s.privacy && !['hidden_list', 'public_list'].includes(s.privacy)) throw new EventError('invalid');
@@ -192,6 +192,7 @@ export async function updateEventSettings(
     [eventId, s.privacy ?? null, offsets ?? null, s.status ?? null, s.tipsEnabled ?? null],
   );
   if (s.organizerKind) await db.query('UPDATE events SET organizer_kind=$2 WHERE id=$1', [eventId, s.organizerKind]);
+  if (s.showAmounts !== undefined) await db.query('UPDATE events SET show_amounts=$2 WHERE id=$1', [eventId, s.showAmounts]);
   if (s.showOnHome !== undefined) {
     // Asking again after a decline puts the event back in the review queue.
     await db.query(

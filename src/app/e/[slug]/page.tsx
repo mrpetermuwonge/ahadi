@@ -59,6 +59,13 @@ export default async function EventPage({ params }: { params: { slug: string } }
             <h1 className="text-2xl font-extrabold leading-tight">{e.title}</h1>
             {e.event_date && <p className="text-muted mt-1">{formatDate(e.event_date)}</p>}
 
+            {e.show_amounts === false ? (
+              // The organizer chose not to show money publicly: show how many people support it instead.
+              <div className="mt-6 flex items-center gap-3 rounded-xl bg-brand-soft px-4 py-3">
+                <svg aria-hidden className="w-7 h-7 shrink-0 text-brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.6-7 10-7 10z" /></svg>
+                <p><span className="text-xl font-extrabold">{totals.pledgeCount}</span> <span className="text-muted">{t('ev.supportersCount')}</span></p>
+              </div>
+            ) : (
             <div className="mt-6 flex flex-col sm:flex-row items-center gap-6">
               <ProgressRing
                 collected={totals.collected}
@@ -88,6 +95,7 @@ export default async function EventPage({ params }: { params: { slug: string } }
                 )}
               </dl>
             </div>
+            )}
 
             {e.story && <p className="mt-6 whitespace-pre-line leading-relaxed">{e.story}</p>}
             {details.length > 0 && (

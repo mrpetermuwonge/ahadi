@@ -222,5 +222,18 @@
       "The featured hero card is now the celebration with the most supporters (it used to be the one closest to its target).",
       "The event page itself still shows progress to the people who open it."
     ]
+  },
+  {
+    "version": "1.19",
+    "date": "16 Nov 2026",
+    "title": "Organizer switch: show or hide amounts on the event page",
+    "code_saved": true,
+    "changes": [
+      "New switch in Settings: \"Show amounts on the event page\" (on by default, so existing events look the same).",
+      "When it is off, the public event page shows no money at all (no raised, pledged, target or progress ring). It shows how many people have pledged instead.",
+      "The organizer's own dashboard, ledger and reports still show every amount. Pledgers still see their own pledge and balance.",
+      "Database change: migration 009 adds events.show_amounts (applied automatically when the server starts; no data is lost).",
+      "Wording in English, Swahili and Luganda."
+    ]
   }
 ]
