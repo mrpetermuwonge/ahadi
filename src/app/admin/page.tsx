@@ -10,34 +10,55 @@ import { getSettings, DEFAULT_SETTINGS } from '@/lib/settings';
 import { Logo } from '@/components/Brand';
 import { LangSwitcher } from '@/components/Ui';
 import { LogoutButton } from '@/app/app/LogoutButton';
-import { AdminButton, SettingsEditor, RunJobs } from './AdminClient';
+import { AdminButton, SettingsEditor, RunJobs, TeamForm, ReassignOwner } from './AdminClient';
 import { Alert } from '@/components/Ui';
 import { codesOnScreen } from '@/lib/services/auth';
+import { platformAnalytics } from '@/lib/services/adminAnalytics';
+import { listAdmins } from '@/lib/services/adminTeam';
+import { adminPermissionsFor, adminRoleOf, MONEY_SETTINGS, type AdminPermission } from '@/lib/adminPermissions';
 import type { Key } from '@/i18n';
 
 export const metadata = { title: 'Admin', robots: { index: false } };
 
-const TABS = ['events', 'flags', 'payouts', 'verifications', 'revenue', 'settings', 'recon', 'audit'] as const;
+type Perms = Record<AdminPermission, boolean>;
+const TABS = ['overview', 'events', 'flags', 'payouts', 'verifications', 'revenue', 'settings', 'recon', 'audit', 'team'] as const;
 type Tab = (typeof TABS)[number];
 const TAB_KEY: Record<Tab, Key> = {
-  events: 'adm.events', flags: 'adm.flags', payouts: 'adm.payouts', verifications: 'adm.verifications',
-  revenue: 'adm.revenue', settings: 'adm.settings', recon: 'adm.recon', audit: 'adm.audit',
+  overview: 'ax.overview', events: 'adm.events', flags: 'adm.flags', payouts: 'adm.payouts', verifications: 'adm.verifications',
+  revenue: 'adm.revenue', settings: 'adm.settings', recon: 'adm.recon', audit: 'adm.audit', team: 'ax.team',
 };
+/** Which permission lets a staff member open each tab. */
+const TAB_PERM: Record<Tab, AdminPermission> = {
+  overview: 'admin.view', events: 'admin.view', flags: 'admin.view', payouts: 'payouts.view', verifications: 'admin.view',
+  revenue: 'revenue.view', settings: 'admin.view', recon: 'admin.view', audit: 'audit.view', team: 'admin.view',
+};
+const PERIODS = [7, 30, 90, 365];
 
-export default async function AdminPage({ searchParams }: { searchParams: { tab?: string } }) {
-  await requireAdmin();
+export default async function AdminPage({ searchParams }: { searchParams: { tab?: string; days?: string; q?: string } }) {
+  const user = await requireAdmin();
   const { t } = getT();
-  const tab: Tab = (TABS as readonly string[]).includes(searchParams.tab ?? '') ? (searchParams.tab as Tab) : 'events';
+  const perms = adminPermissionsFor(user);
+  const role = adminRoleOf(user)!;
+  const allowed = TABS.filter((x) => perms[TAB_PERM[x]]);
+  const tab: Tab = (allowed as readonly string[]).includes(searchParams.tab ?? '') ? (searchParams.tab as Tab) : 'overview';
+  const days = PERIODS.includes(Number(searchParams.days)) ? Number(searchParams.days) : 30;
   return (
     <div className="min-h-screen">
       <header className="border-b border-line/60 bg-card">
-        <div className="mx-auto max-w-6xl flex items-center justify-between px-4 py-2">
-          <div className="flex items-center gap-3"><Logo /><span className="chip bg-accent/20 text-ink">{t('adm.title')}</span></div>
-          <div className="flex items-center gap-1"><LangSwitcher /><Link href="/app" className="btn-ghost min-h-[40px] px-3 text-sm">{t('nav.events')}</Link><LogoutButton /></div>
+        <div className="mx-auto max-w-6xl flex items-center justify-between gap-2 px-4 py-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Logo />
+            <span className="chip bg-accent/20 text-ink whitespace-nowrap">{t('adm.title')} · {t(`ax.role.${role}` as Key)}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <LangSwitcher />
+            <Link href="/app" className="btn-ghost min-h-[40px] px-3 text-sm hidden sm:inline-flex">{t('nav.events')}</Link>
+            <LogoutButton />
+          </div>
         </div>
-        <nav className="mx-auto max-w-6xl px-4 overflow-x-auto">
+        <nav className="mx-auto max-w-6xl px-4 overflow-x-auto" aria-label={t('adm.title')}>
           <ul className="flex gap-1 min-w-max">
-            {TABS.map((x) => (
+            {allowed.map((x) => (
               <li key={x}>
                 <Link href={`/admin?tab=${x}`} aria-current={tab === x ? 'page' : undefined}
                   className={`inline-flex min-h-[44px] items-center px-3 text-sm font-semibold border-b-2 ${tab === x ? 'border-brand text-brand' : 'border-transparent text-muted'}`}>
@@ -51,14 +72,17 @@ export default async function AdminPage({ searchParams }: { searchParams: { tab?
       <nav className="mx-auto max-w-6xl px-4 pt-2"><BackLink fallback="/app" /></nav>
       <main className="mx-auto max-w-6xl px-4 py-5">
         {codesOnScreen() && <div className="mb-4"><Alert kind="warn">{t('adm.codesOnScreen')}</Alert></div>}
-        {tab === 'events' && <EventsTab />}
-        {tab === 'flags' && <FlagsTab />}
-        {tab === 'payouts' && <PayoutsTab />}
-        {tab === 'verifications' && <VerificationsTab />}
+        {role === 'support' && <div className="mb-4"><Alert kind="info">{t('ax.readOnly')}</Alert></div>}
+        {tab === 'overview' && <OverviewTab days={days} perms={perms} />}
+        {tab === 'events' && <EventsTab perms={perms} q={searchParams.q ?? ''} />}
+        {tab === 'flags' && <FlagsTab perms={perms} />}
+        {tab === 'payouts' && <PayoutsTab perms={perms} />}
+        {tab === 'verifications' && <VerificationsTab perms={perms} />}
         {tab === 'revenue' && <RevenueTab />}
-        {tab === 'settings' && <SettingsTab />}
-        {tab === 'recon' && <ReconTab />}
+        {tab === 'settings' && <SettingsTab perms={perms} userId={user.id} />}
+        {tab === 'recon' && <ReconTab perms={perms} />}
         {tab === 'audit' && <AuditTab />}
+        {tab === 'team' && <TeamTab perms={perms} userId={user.id} />}
       </main>
     </div>
   );
@@ -69,57 +93,250 @@ function Empty() {
   return <p className="card p-6 text-muted text-center">{t('adm.none')}</p>;
 }
 
-async function EventsTab() {
-  const db = await getDb();
-  const { t } = getT();
-  // Urgent hospital / funeral events are pinned to the top for fast review.
-  const events = await db.query(`SELECT e.*, COALESCE(u.phone, u.email) AS owner_phone FROM events e JOIN users u ON u.id=e.created_by
-      ORDER BY (e.show_on_home AND e.home_approved IS NULL) DESC, e.urgent DESC, e.created_at DESC LIMIT 200`);
-  if (events.length === 0) return <Empty />;
-  const rows = await Promise.all(events.map(async (e) => ({ e, totals: await eventTotals(db, e.id) })));
+/* ------------------------------------------------------------------ Overview / analytics */
+
+function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'brand' | 'warn' | 'bad' }) {
+  const c = tone === 'brand' ? 'text-brand' : tone === 'warn' ? 'text-warn' : tone === 'bad' ? 'text-bad' : '';
   return (
-    <div className="card overflow-x-auto">
-      <table className="w-full text-sm min-w-[760px]">
-        <thead><tr className="text-left text-muted border-b border-line">
-          <th className="p-3">{t('rc.event')}</th><th className="p-3">{t('ledger.type')}</th><th className="p-3">{t('adm.created')}</th>
-          <th className="p-3 text-right">{t('adm.collected')}</th><th className="p-3" />
-        </tr></thead>
-        <tbody>
-          {rows.map(({ e, totals }) => (
-            <tr key={e.id} className="border-b border-line/60 align-top">
-              <td className="p-3">
-                <a className="font-semibold underline" href={`/e/${e.slug}`} target="_blank" rel="noopener">{e.title}</a>
-                <div className="text-xs text-muted">{e.owner_phone?.startsWith('+') ? formatPhone(e.owner_phone) : e.owner_phone}</div>
-                <div className="flex gap-1 mt-1">
-                  {e.urgent && <span className="chip bg-bad/15 text-bad">{t('ev.urgent')}</span>}
-                  {e.frozen && <span className="chip bg-warn/15 text-warn">{t('adm.freeze')}</span>}
-                  {e.verified && <span className="chip bg-ok/15 text-ok">{t('ev.verified')}</span>}
-                  {e.show_on_home && e.home_approved === null && <span className="chip bg-accent/25 text-ink">{t('adm.homeWaiting')}</span>}
-                  {e.show_on_home && e.home_approved === true && <span className="chip bg-brand-soft text-brand">{t('adm.homeLive')}</span>}
-                </div>
-              </td>
-              <td className="p-3">{t(`type.${e.type}` as Key)}</td>
-              <td className="p-3 whitespace-nowrap">{new Date(e.created_at).toISOString().slice(0, 10)}</td>
-              <td className="p-3 text-right whitespace-nowrap">{formatMoney(totals.collected, e.currency)}</td>
-              <td className="p-3 text-right space-x-1 space-y-1">
-                <AdminButton action="freeze" body={{ eventId: e.id, frozen: !e.frozen }} label={e.frozen ? t('adm.unfreeze') : t('adm.freeze')} />
-                {!e.verified && <AdminButton action="verify-event" body={{ eventId: e.id }} label={t('adm.markVerified')} />}
-                {e.show_on_home && e.home_approved !== true && <AdminButton action="home" body={{ eventId: e.id, approved: true }} label={t('adm.homeApprove')} primary />}
-                {e.show_on_home && e.home_approved === null && <AdminButton action="home" body={{ eventId: e.id, approved: false }} label={t('adm.homeDecline')} />}
-                {e.show_on_home && e.home_approved === true && <AdminButton action="home" body={{ eventId: e.id, approved: false }} label={t('adm.homeRemove')} />}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="card p-4">
+      <p className="text-xs text-muted">{label}</p>
+      <p className={`text-xl font-extrabold mt-1 ${c}`}>{value}</p>
+      {sub && <p className="text-xs text-muted mt-0.5">{sub}</p>}
     </div>
   );
 }
 
-async function FlagsTab() {
+function Bar({ value, max, className = 'bg-brand' }: { value: number; max: number; className?: string }) {
+  return <span className="block h-2 rounded-full bg-line overflow-hidden"><span className={`block h-full rounded-full ${className}`} style={{ width: `${max > 0 ? Math.max(2, (value / max) * 100) : 0}%` }} /></span>;
+}
+
+async function OverviewTab({ days, perms }: { days: number; perms: Perms }) {
+  const { t } = getT();
+  const a = await platformAnalytics(await getDb(), days);
+  const m = (n: number) => formatMoney(n);
+  const maxDay = Math.max(1, ...a.daily.map((d) => Math.max(d.pledged, d.collected)));
+  const maxType = Math.max(1, ...a.byType.map((r) => r.pledged));
+  const maxTop = Math.max(1, ...a.top.map((r) => r.collected));
+  const queue: [Key, number, string][] = [
+    ['ax.q.flags', a.queue.flags, 'flags'],
+    ['ax.q.verifications', a.queue.verifications, 'verifications'],
+    ['ax.q.payouts', a.payouts.in_review, 'payouts'],
+    ['ax.q.home', a.queue.home, 'events'],
+    ['ax.q.recon', a.queue.recon, 'recon'],
+    ['ax.q.proposals', a.queue.proposals, 'settings'],
+  ];
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex gap-1" role="group" aria-label={t('ax.period')}>
+          {PERIODS.map((p) => (
+            <Link key={p} href={`/admin?tab=overview&days=${p}`} aria-current={p === days ? 'true' : undefined}
+              className={`btn min-h-[36px] px-3 text-sm ${p === days ? 'bg-brand text-white' : 'btn-outline'}`}>{t('ax.days', { n: p })}</Link>
+          ))}
+        </div>
+        {perms['analytics.export'] && <a className="btn-outline min-h-[36px] px-3 text-sm" href={`/api/admin/analytics?days=${days}`}>{t('ax.exportCsv')}</a>}
+      </div>
+
+      {/* Work waiting for the team */}
+      <section>
+        <h2 className="font-bold mb-2">{t('ax.queue')}</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {queue.map(([k, n, tab]) => (
+            <Link key={k} href={`/admin?tab=${tab}`} className={`card p-4 tap hover:border-brand/40 ${n > 0 ? 'border-accent' : ''}`}>
+              <p className="text-xs text-muted">{t(k)}</p>
+              <p className={`text-2xl font-extrabold ${n > 0 ? 'text-warn' : 'text-ok'}`}>{n}</p>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      {/* Money */}
+      <section>
+        <h2 className="font-bold mb-2">{t('ax.money')} <span className="text-sm font-normal text-muted">· {t('ax.lastDays', { n: days })}</span></h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Kpi label={t('dash.pledged')} value={m(a.money.pledged)} sub={t('ax.allTime', { v: m(a.money.pledgedAllTime) })} />
+          <Kpi label={t('dash.collected')} value={m(a.money.collected)} sub={t('ax.offline', { v: m(a.money.collectedOffline) })} tone="brand" />
+          <Kpi label={t('ax.collectionRate')} value={`${a.money.collectionRate}%`} sub={t('ax.collectedAll', { v: m(a.money.collectedAllTime) })} />
+          <Kpi label={t('dash.outstanding')} value={m(a.money.outstanding)} sub={t('ax.now')} tone={a.money.outstanding > 0 ? 'warn' : undefined} />
+          <Kpi label={t('ax.held')} value={m(a.money.heldForOrganizers)} sub={t('ax.heldSub')} />
+          <Kpi label={t('ax.paidOut')} value={m(a.payouts.paid)} sub={t('ax.paidOutSub', { n: a.payouts.paid_n, v: m(a.money.paidOutAllTime) })} />
+          <Kpi label={t('adm.payoutsPending')} value={m(a.money.payoutPending)} sub={t('ax.payoutQueue', { r: a.payouts.in_review, s: a.payouts.awaiting })} />
+          <Kpi label={t('ax.revenue')} value={m(a.revenue.total)} sub={t('ax.revenueSub', { f: m(a.revenue.fees), t: m(a.revenue.tips) })} tone="brand" />
+        </div>
+      </section>
+
+      {/* Trend */}
+      <section className="card p-5">
+        <h2 className="font-bold">{t('ax.trend')}</h2>
+        {a.daily.length === 0 ? <p className="text-muted mt-2">{t('adm.none')}</p> : (
+          <>
+            <div className="mt-4 flex items-end gap-[3px] h-36" role="img" aria-label={t('ax.trend')}>
+              {a.daily.map((d) => (
+                <div key={d.day} className="flex-1 flex items-end gap-px h-full min-w-[4px]" title={`${d.day}: ${m(d.pledged)} / ${m(d.collected)}`}>
+                  <div className="flex-1 bg-accent/50 rounded-t" style={{ height: `${(d.pledged / maxDay) * 100}%` }} />
+                  <div className="flex-1 bg-brand rounded-t" style={{ height: `${(d.collected / maxDay) * 100}%` }} />
+                </div>
+              ))}
+            </div>
+            <div className="mt-2 flex justify-between text-xs text-muted">
+              <span>{a.daily[0]?.day}</span>
+              <span className="flex gap-3"><span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-accent/50" />{t('dash.pledged')}</span><span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-brand" />{t('dash.collected')}</span></span>
+              <span>{a.daily[a.daily.length - 1]?.day}</span>
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* Activity */}
+      <section>
+        <h2 className="font-bold mb-2">{t('ax.activity')}</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Kpi label={t('ax.eventsCreated')} value={String(a.events.created)} sub={t('ax.eventsNow', { a: a.events.active, c: a.events.closed })} />
+          <Kpi label={t('ax.pledgesMade')} value={String(a.pledges.n)} sub={t('ax.avgPledge', { v: m(a.pledges.avg) })} />
+          <Kpi label={t('ax.fullyPaid')} value={`${a.pledges.fullyPaidRate}%`} sub={t('ax.partPaid', { n: a.pledges.part_paid })} />
+          <Kpi label={t('ax.paySuccess')} value={`${a.payments.successRate}%`} sub={t('ax.payAttempts', { ok: a.payments.succeeded, n: a.payments.attempts })} tone={a.payments.attempts > 0 && a.payments.successRate < 70 ? 'bad' : undefined} />
+          <Kpi label={t('ax.organizers')} value={String(a.people.organizers)} sub={t('ax.newOrganizers', { n: a.people.new_organizers })} />
+          <Kpi label={t('ax.pledgers')} value={String(a.people.pledgers)} sub={t('ax.pledgersPeriod', { n: a.pledges.people })} />
+          <Kpi label={t('ax.trust')} value={t('ax.trustValue', { v: a.events.verified, f: a.events.frozen })} sub={t('ax.trustSub', { u: a.events.urgent, h: a.events.on_home })} />
+          <Kpi label={t('ax.staff')} value={String(a.people.admins)} sub={t('ax.newUsers', { n: a.people.new_users })} />
+        </div>
+      </section>
+
+      <div className="grid lg:grid-cols-2 gap-4">
+        <section className="card p-5">
+          <h2 className="font-bold">{t('adm.byType')}</h2>
+          <ul className="mt-3 space-y-3">
+            {a.byType.map((r) => (
+              <li key={r.type}>
+                <div className="flex justify-between text-sm"><span>{t(`type.${r.type}` as Key)} <span className="text-muted">· {r.events}</span></span><b>{m(r.pledged)}</b></div>
+                <Bar value={r.pledged} max={maxType} className="bg-accent/70" />
+                <div className="mt-1"><Bar value={r.collected} max={maxType} /></div>
+              </li>
+            ))}
+          </ul>
+        </section>
+        <section className="card p-5">
+          <h2 className="font-bold">{t('ax.payMethods')}</h2>
+          {a.payments.byMethod.length === 0 ? <p className="text-muted mt-2">{t('adm.none')}</p> : (
+            <table className="w-full text-sm mt-3">
+              <thead><tr className="text-left text-muted"><th className="py-1">{t('ax.method')}</th><th className="text-right">{t('ax.attempts')}</th><th className="text-right">{t('ax.success')}</th><th className="text-right">{t('ax.amount')}</th></tr></thead>
+              <tbody>{a.payments.byMethod.map((x) => (
+                <tr key={x.method} className="border-t border-line"><td className="py-1.5 uppercase font-semibold">{x.method}</td><td className="text-right">{x.n}</td><td className="text-right">{x.n ? Math.round((x.ok / x.n) * 100) : 0}%</td><td className="text-right">{m(x.amount)}</td></tr>
+              ))}</tbody>
+            </table>
+          )}
+          {a.payments.failures.length > 0 && (
+            <>
+              <h3 className="font-semibold text-sm mt-4">{t('ax.failures')}</h3>
+              <ul className="text-sm mt-1">{a.payments.failures.map((f) => <li key={f.reason} className="flex justify-between py-0.5"><span className="text-muted">{f.reason}</span><b>{f.n}</b></li>)}</ul>
+            </>
+          )}
+        </section>
+        <section className="card p-5">
+          <h2 className="font-bold">{t('ax.topEvents')}</h2>
+          {a.top.length === 0 ? <p className="text-muted mt-2">{t('adm.none')}</p> : (
+            <ol className="mt-3 space-y-3">
+              {a.top.map((r) => (
+                <li key={r.id}>
+                  <div className="flex justify-between gap-2 text-sm">
+                    <Link href={`/app/e/${r.id}`} className="font-semibold underline truncate">{r.title}</Link>
+                    <b className="shrink-0">{m(r.collected)}</b>
+                  </div>
+                  <Bar value={r.collected} max={maxTop} />
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+        <section className="card p-5">
+          <h2 className="font-bold">{t('ax.messages')}</h2>
+          {a.messages.length === 0 ? <p className="text-muted mt-2">{t('adm.none')}</p> : (
+            <table className="w-full text-sm mt-3">
+              <thead><tr className="text-left text-muted"><th className="py-1">{t('ax.channel')}</th><th>{t('ax.status')}</th><th className="text-right">{t('ax.count')}</th></tr></thead>
+              <tbody>{a.messages.map((x) => (
+                <tr key={`${x.channel}-${x.status}`} className="border-t border-line"><td className="py-1.5">{x.channel}</td><td className={x.status === 'failed' ? 'text-bad font-semibold' : ''}>{x.status}</td><td className="text-right">{x.n}</td></tr>
+              ))}</tbody>
+            </table>
+          )}
+          <h3 className="font-semibold text-sm mt-4">{t('ax.byKind')}</h3>
+          <ul className="text-sm mt-1">{a.byKind.map((k) => <li key={k.kind} className="flex justify-between py-0.5"><span>{t(`who.${k.kind}` as Key)}</span><b>{k.events}</b></li>)}</ul>
+        </section>
+      </div>
+      <p className="text-xs text-muted">{t('ax.note')}</p>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ Events */
+
+async function EventsTab({ perms, q }: { perms: Perms; q: string }) {
   const db = await getDb();
   const { t } = getT();
-  const flags = await db.query(`SELECT r.*, e.title, e.slug FROM reports r JOIN events e ON e.id=r.event_id WHERE r.status='open' ORDER BY r.created_at DESC`);
+  const term = q.trim();
+  // Urgent hospital / funeral events and homepage requests are pinned to the top for fast review.
+  const events = await db.query(
+    `SELECT e.*, COALESCE(u.phone, u.email) AS owner_phone, u.name AS owner_name FROM events e JOIN users u ON u.id=e.created_by
+      WHERE ($1 = '' OR e.title ILIKE '%' || $1 || '%' OR e.slug ILIKE '%' || $1 || '%' OR u.phone ILIKE '%' || $1 || '%')
+      ORDER BY (e.show_on_home AND e.home_approved IS NULL) DESC, e.urgent DESC, e.created_at DESC LIMIT 200`,
+    [term],
+  );
+  const rows = await Promise.all(events.map(async (e) => ({ e, totals: await eventTotals(db, e.id) })));
+  return (
+    <div className="space-y-3">
+      <form className="flex gap-2" action="/admin">
+        <input type="hidden" name="tab" value="events" />
+        <input name="q" defaultValue={term} className="input" placeholder={t('ax.search')} aria-label={t('ax.search')} />
+        <button className="btn-outline px-4">{t('ax.find')}</button>
+      </form>
+      {rows.length === 0 ? <Empty /> : (
+        <div className="card overflow-x-auto">
+          <table className="w-full text-sm min-w-[820px]">
+            <thead><tr className="text-left text-muted border-b border-line">
+              <th className="p-3">{t('rc.event')}</th><th className="p-3">{t('ledger.type')}</th><th className="p-3">{t('adm.created')}</th>
+              <th className="p-3 text-right">{t('adm.collected')}</th><th className="p-3" />
+            </tr></thead>
+            <tbody>
+              {rows.map(({ e, totals }) => (
+                <tr key={e.id} className="border-b border-line/60 align-top">
+                  <td className="p-3">
+                    <Link className="font-semibold underline" href={`/app/e/${e.id}`}>{e.title}</Link>
+                    <div className="text-xs text-muted">{e.owner_name ? `${e.owner_name} · ` : ''}{e.owner_phone?.startsWith('+') ? formatPhone(e.owner_phone) : e.owner_phone} · <a className="underline" href={`/e/${e.slug}`} target="_blank" rel="noopener">{t('ax.publicPage')}</a></div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {e.urgent && <span className="chip bg-bad/15 text-bad">{t('ev.urgent')}</span>}
+                      {e.frozen && <span className="chip bg-warn/15 text-warn">{t('adm.freeze')}</span>}
+                      {e.verified && <span className="chip bg-ok/15 text-ok">{t('ev.verified')}</span>}
+                      {e.status !== 'active' && <span className="chip bg-line text-muted">{t('dash.tab.closed')}</span>}
+                      {e.show_on_home && e.home_approved === null && <span className="chip bg-accent/25 text-ink">{t('adm.homeWaiting')}</span>}
+                      {e.show_on_home && e.home_approved === true && <span className="chip bg-brand-soft text-brand">{t('adm.homeLive')}</span>}
+                    </div>
+                  </td>
+                  <td className="p-3">{t(`type.${e.type}` as Key)}</td>
+                  <td className="p-3 whitespace-nowrap">{new Date(e.created_at).toISOString().slice(0, 10)}</td>
+                  <td className="p-3 text-right whitespace-nowrap">{formatMoney(totals.collected, e.currency)}</td>
+                  <td className="p-3 text-right space-x-1 space-y-1">
+                    {perms['events.freeze'] && <AdminButton action="freeze" body={{ eventId: e.id, frozen: !e.frozen }} label={e.frozen ? t('adm.unfreeze') : t('adm.freeze')} />}
+                    {perms['events.verify'] && !e.verified && <AdminButton action="verify-event" body={{ eventId: e.id }} label={t('adm.markVerified')} />}
+                    {perms['home.review'] && e.show_on_home && e.home_approved !== true && <AdminButton action="home" body={{ eventId: e.id, approved: true }} label={t('adm.homeApprove')} primary />}
+                    {perms['home.review'] && e.show_on_home && e.home_approved === null && <AdminButton action="home" body={{ eventId: e.id, approved: false }} label={t('adm.homeDecline')} />}
+                    {perms['home.review'] && e.show_on_home && e.home_approved === true && <AdminButton action="home" body={{ eventId: e.id, approved: false }} label={t('adm.homeRemove')} />}
+                    {perms['accounts.recover'] && <ReassignOwner eventId={e.id} />}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ Queues */
+
+async function FlagsTab({ perms }: { perms: Perms }) {
+  const db = await getDb();
+  const { t } = getT();
+  const flags = await db.query(`SELECT r.*, e.title, e.slug, e.frozen FROM reports r JOIN events e ON e.id=r.event_id WHERE r.status='open' ORDER BY r.created_at DESC`);
   if (flags.length === 0) return <Empty />;
   return (
     <ul className="grid gap-3">
@@ -131,8 +348,8 @@ async function FlagsTab() {
             <p className="text-xs text-muted">{f.source} · {new Date(f.created_at).toISOString().slice(0, 16).replace('T', ' ')}</p>
           </div>
           <div className="flex gap-2 items-start">
-            <AdminButton action="freeze" body={{ eventId: f.event_id, frozen: true }} label={t('adm.freeze')} />
-            <AdminButton action="resolve-flag" body={{ reportId: f.id }} label={t('adm.resolve')} />
+            {perms['events.freeze'] && !f.frozen && <AdminButton action="freeze" body={{ eventId: f.event_id, frozen: true }} label={t('adm.freeze')} />}
+            {perms['flags.resolve'] && <AdminButton action="resolve-flag" body={{ reportId: f.id }} label={t('adm.resolve')} />}
           </div>
         </li>
       ))}
@@ -140,12 +357,13 @@ async function FlagsTab() {
   );
 }
 
-async function PayoutsTab() {
+async function PayoutsTab({ perms }: { perms: Perms }) {
   const db = await getDb();
   const { t } = getT();
   const rows = await db.query(
-    `SELECT p.*, e.title, e.type, e.verified, a.kind, a.phone, a.bank_name, a.account_no FROM payouts p JOIN events e ON e.id=p.event_id
-       JOIN payout_accounts a ON a.id=p.account_id ORDER BY CASE p.status WHEN 'in_review' THEN 0 ELSE 1 END, e.urgent DESC, p.created_at DESC LIMIT 200`,
+    `SELECT p.*, e.title, e.type, e.verified, a.kind, a.phone, a.bank_name, a.account_no, COALESCE(r.name, r.phone) AS requester
+       FROM payouts p JOIN events e ON e.id=p.event_id JOIN payout_accounts a ON a.id=p.account_id LEFT JOIN users r ON r.id=p.requested_by
+      ORDER BY CASE p.status WHEN 'in_review' THEN 0 ELSE 1 END, e.urgent DESC, p.created_at DESC LIMIT 200`,
   );
   if (rows.length === 0) return <Empty />;
   return (
@@ -155,9 +373,10 @@ async function PayoutsTab() {
           <div>
             <p className="font-bold">{formatMoney(Number(p.amount), p.currency)} · {p.title}</p>
             <p className="text-sm text-muted">{p.kind === 'bank' ? `${p.bank_name} ${p.account_no}` : formatPhone(p.phone)} · {t(`type.${p.type}` as Key)} {p.verified ? `· ${t('ev.verified')}` : ''}</p>
+            <p className="text-xs text-muted">{t('ax.requestedBy', { who: p.requester?.startsWith?.('+') ? formatPhone(p.requester) : p.requester ?? '—' })} · {new Date(p.created_at).toISOString().slice(0, 16).replace('T', ' ')}</p>
             <p className="text-sm font-semibold">{t(`po.status.${p.status}` as Key)}</p>
           </div>
-          {p.status === 'in_review' && (
+          {p.status === 'in_review' && perms['payouts.review'] && (
             <div className="flex gap-2 items-start">
               <AdminButton action="payout-review" body={{ payoutId: p.id, approve: true }} label={t('a.approve')} primary />
               <AdminButton action="payout-review" body={{ payoutId: p.id, approve: false }} label={t('a.reject')} />
@@ -169,7 +388,7 @@ async function PayoutsTab() {
   );
 }
 
-async function VerificationsTab() {
+async function VerificationsTab({ perms }: { perms: Perms }) {
   const db = await getDb();
   const { t } = getT();
   const rows = await db.query(
@@ -186,10 +405,12 @@ async function VerificationsTab() {
             <p className="text-sm text-muted">{t(v.kind === 'organizer_id' ? 'set.verifyKindId' : 'set.verifyKindInvoice')} · {v.phone?.startsWith('+') ? formatPhone(v.phone) : v.phone}</p>
             {v.file_id && <a className="text-sm underline" href={`/api/files/${v.file_id}`} target="_blank" rel="noopener">{t('adm.openFile')}</a>}
           </div>
-          <div className="flex gap-2 items-start">
-            <AdminButton action="verification" body={{ verificationId: v.id, approve: true }} label={t('a.approve')} primary />
-            <AdminButton action="verification" body={{ verificationId: v.id, approve: false }} label={t('a.reject')} />
-          </div>
+          {perms['verifications.review'] && (
+            <div className="flex gap-2 items-start">
+              <AdminButton action="verification" body={{ verificationId: v.id, approve: true }} label={t('a.approve')} primary />
+              <AdminButton action="verification" body={{ verificationId: v.id, approve: false }} label={t('a.reject')} />
+            </div>
+          )}
         </li>
       ))}
     </ul>
@@ -252,60 +473,134 @@ async function RevenueTab() {
   );
 }
 
-async function SettingsTab() {
+/* ------------------------------------------------------------------ Settings, recon, audit, team */
+
+async function SettingsTab({ perms, userId }: { perms: Perms; userId: string }) {
   const db = await getDb();
+  const { t } = getT();
   const s = await getSettings(db);
+  const proposals = await db.query(
+    `SELECT p.*, COALESCE(u.name, u.phone, u.email) AS who FROM setting_proposals p JOIN users u ON u.id=p.proposed_by WHERE p.status='pending' ORDER BY p.created_at`,
+  );
+  const values = s as unknown as Record<string, unknown>;
   return (
     <div className="space-y-4">
-      <SettingsEditor values={s as unknown as Record<string, unknown>} keys={Object.keys(DEFAULT_SETTINGS)} />
-      <RunJobs />
+      {proposals.length > 0 && (
+        <section className="card p-5 border-2 border-accent/60">
+          <h2 className="font-bold">{t('ax.proposals')}</h2>
+          <p className="text-sm text-muted">{t('ax.proposalsHint')}</p>
+          <ul className="mt-3 divide-y divide-line">
+            {proposals.map((p) => (
+              <li key={p.id} className="py-3 flex flex-wrap justify-between gap-2">
+                <div className="text-sm">
+                  <p className="font-mono font-semibold">{p.key}</p>
+                  <p>{JSON.stringify(p.old_value)} → <b>{JSON.stringify(p.value)}</b></p>
+                  <p className="text-xs text-muted">{t('ax.proposedBy', { who: String(p.who).startsWith('+') ? formatPhone(p.who) : p.who })}</p>
+                </div>
+                {perms['settings.approve'] && p.proposed_by !== userId ? (
+                  <div className="flex gap-2 items-start">
+                    <AdminButton action="setting-decide" body={{ proposalId: p.id, approve: true }} label={t('a.approve')} primary />
+                    <AdminButton action="setting-decide" body={{ proposalId: p.id, approve: false }} label={t('a.reject')} />
+                  </div>
+                ) : <span className="text-xs text-muted self-center">{t('ax.waitingOther')}</span>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {perms['settings.edit'] ? (
+        <SettingsEditor values={values} keys={Object.keys(DEFAULT_SETTINGS)} moneyKeys={MONEY_SETTINGS} />
+      ) : (
+        <section className="card p-5">
+          <h2 className="font-bold">{t('adm.settings')}</h2>
+          <p className="text-sm text-muted">{t('ax.settingsReadOnly')}</p>
+          <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-1 mt-3 text-sm">
+            {Object.keys(DEFAULT_SETTINGS).map((k) => (
+              <div key={k} className="flex justify-between gap-2 border-b border-line/60 py-1"><dt className="font-mono text-xs">{k}</dt><dd className="font-semibold">{JSON.stringify(values[k])}</dd></div>
+            ))}
+          </dl>
+        </section>
+      )}
+      {perms['jobs.run'] && <RunJobs />}
     </div>
   );
 }
 
-async function ReconTab() {
+async function ReconTab({ perms }: { perms: Perms }) {
   const db = await getDb();
   const { t } = getT();
   const rows = await db.query(`SELECT * FROM reconciliation_issues WHERE resolved=false ORDER BY created_at DESC LIMIT 200`);
-  if (rows.length === 0) return <div className="space-y-4"><Empty /><RunJobs /></div>;
   return (
     <div className="space-y-4">
-      <ul className="grid gap-3">
-        {rows.map((r) => (
-          <li key={r.id} className="card p-4 flex flex-wrap justify-between gap-3">
-            <div>
-              <p className="font-semibold">{r.kind}</p>
-              <p className="text-sm text-muted">{r.run_date} · {r.payment_id ?? ''}</p>
-              <code className="text-xs break-all">{JSON.stringify(r.details)}</code>
-            </div>
-            <AdminButton action="resolve-recon" body={{ issueId: r.id }} label={t('adm.resolve')} />
-          </li>
-        ))}
-      </ul>
-      <RunJobs />
+      {rows.length === 0 ? <Empty /> : (
+        <ul className="grid gap-3">
+          {rows.map((r) => (
+            <li key={r.id} className="card p-4 flex flex-wrap justify-between gap-3">
+              <div>
+                <p className="font-semibold">{r.kind}</p>
+                <p className="text-sm text-muted">{r.run_date} · {r.payment_id ?? ''}</p>
+                <code className="text-xs break-all">{JSON.stringify(r.details)}</code>
+              </div>
+              {perms['recon.resolve'] && <AdminButton action="resolve-recon" body={{ issueId: r.id }} label={t('adm.resolve')} />}
+            </li>
+          ))}
+        </ul>
+      )}
+      {perms['jobs.run'] && <RunJobs />}
     </div>
   );
 }
 
 async function AuditTab() {
   const db = await getDb();
-  const rows = await db.query(`SELECT a.*, COALESCE(u.phone, u.email) AS phone FROM audit_logs a LEFT JOIN users u ON u.id=a.actor_user_id ORDER BY a.id DESC LIMIT 300`);
+  const rows = await db.query(`SELECT a.*, COALESCE(u.phone, u.email) AS phone, u.admin_role FROM audit_logs a LEFT JOIN users u ON u.id=a.actor_user_id ORDER BY a.id DESC LIMIT 300`);
   if (rows.length === 0) return <Empty />;
   return (
     <div className="card overflow-x-auto">
       <table className="w-full text-xs min-w-[720px]">
         <tbody>
           {rows.map((a) => (
-            <tr key={a.id} className="border-b border-line/60 align-top">
+            <tr key={a.id} className={`border-b border-line/60 align-top ${String(a.action).startsWith('admin.') ? 'bg-accent-soft/40' : ''}`}>
               <td className="p-2 whitespace-nowrap">{new Date(a.created_at).toISOString().slice(0, 19).replace('T', ' ')}</td>
               <td className="p-2 font-semibold">{a.action}</td>
-              <td className="p-2">{a.phone ?? 'system'}</td>
+              <td className="p-2">{a.phone ?? 'system'}{a.admin_role ? ` (${a.admin_role})` : ''}</td>
               <td className="p-2">{a.entity_type}:{a.entity_id}</td>
               <td className="p-2 break-all">{JSON.stringify(a.details)}</td>
             </tr>
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+async function TeamTab({ perms, userId }: { perms: Perms; userId: string }) {
+  const { t } = getT();
+  const admins = await listAdmins(await getDb());
+  const roles = ['super', 'finance', 'trust', 'support'] as const;
+  return (
+    <div className="space-y-4">
+      <section className="card p-5">
+        <h2 className="font-bold">{t('ax.team')}</h2>
+        <ul className="mt-3 divide-y divide-line">
+          {admins.map((u) => (
+            <li key={u.id} className="py-3 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="font-semibold">{u.name ?? (u.phone ? formatPhone(u.phone) : u.email)} {u.id === userId && <span className="text-xs text-muted">({t('com.you')})</span>}</p>
+                <p className="text-xs text-muted">{u.phone ? formatPhone(u.phone) : u.email} · {t('ax.lastLogin', { d: u.last_login ? new Date(u.last_login).toISOString().slice(0, 10) : '—' })}</p>
+              </div>
+              <span className="chip bg-brand-soft text-brand">{t(`ax.role.${u.admin_role ?? 'support'}` as Key)}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+      <section className="card p-5">
+        <h2 className="font-bold">{t('ax.rolesTitle')}</h2>
+        <ul className="mt-2 space-y-2 text-sm">
+          {roles.map((r) => <li key={r}><b>{t(`ax.role.${r}` as Key)}:</b> <span className="text-muted">{t(`ax.role.${r}.d` as Key)}</span></li>)}
+        </ul>
+      </section>
+      {perms['team.manage'] && <TeamForm />}
     </div>
   );
 }

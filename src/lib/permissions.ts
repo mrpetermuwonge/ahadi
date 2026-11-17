@@ -30,6 +30,7 @@ export type Permission =
   | 'committee.view'
   | 'committee.contacts' // full phone numbers of committee members
   | 'committee.manage'
+  | 'committee.transfer' // hand the event over to another committee member
   | 'payouts.view'
   | 'payouts.request'
   | 'payouts.secondApprove'
@@ -51,6 +52,7 @@ const MATRIX: Record<Permission, readonly EventRole[]> = {
   'committee.view': ['owner', 'treasurer', 'viewer', 'admin'],
   'committee.contacts': ['owner', 'treasurer', 'admin'],
   'committee.manage': ['owner'],
+  'committee.transfer': ['owner'],
   'payouts.view': ['owner', 'treasurer', 'admin'],
   'payouts.request': ['owner'],
   'payouts.secondApprove': ['treasurer', 'owner'], // never the person who asked (enforced in payouts service)

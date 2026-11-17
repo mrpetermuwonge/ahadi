@@ -29,7 +29,7 @@ export function ActionButton({ eventId, action, body, label, className, confirmT
       >
         {busy ? t('a.loading') : label}
       </button>
-      {error && <span role="alert" className="text-xs text-bad mt-1">{t(`err.${error}` as any)}</span>}
+      {error && error !== 'step_up_cancelled' && <span role="alert" className="text-xs text-bad mt-1">{t(`err.${error}` as any)}</span>}
     </span>
   );
 }

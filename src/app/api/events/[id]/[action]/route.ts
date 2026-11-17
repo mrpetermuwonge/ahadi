@@ -3,13 +3,13 @@ import { z } from 'zod';
 import { getDb } from '@/lib/db';
 import { audit } from '@/lib/audit';
 import { newId } from '@/lib/ids';
-import { addMember, EventError, eventAccess, removeMember, updateEventDetails, updateEventSettings } from '@/lib/services/events';
+import { addMember, EventError, eventAccess, removeMember, transferOwnership, updateEventDetails, updateEventSettings } from '@/lib/services/events';
 import { decideChangeRequest, organizerChangeAmount, recordManualPayment, reverseManualEntry } from '@/lib/services/pledges';
 import { requestPayout, secondApprove } from '@/lib/services/payouts';
 import { startPurchase } from '@/lib/services/payments';
 import { getSettings } from '@/lib/settings';
 import { normalizePhone } from '@/lib/phone';
-import { api, apiUser, jsonError } from '@/lib/web';
+import { api, apiUser, jsonError, requireStepUp } from '@/lib/web';
 import type { Permission } from '@/lib/permissions';
 
 /**
@@ -31,7 +31,11 @@ const NEEDS: Record<string, Permission> = {
   'buy-pass': 'billing.manage',
   'buy-credits': 'billing.manage',
   verification: 'verification.manage',
+  'transfer-owner': 'committee.transfer',
 };
+
+/** Actions that move money or change who controls the event: a fresh one-time code is required first. */
+const STEP_UP = new Set(['request-payout', 'second-approve', 'add-member', 'remove-member', 'transfer-owner']);
 
 export const POST = api(async (req, { params }: { params: { id: string; action: string } }) => {
   const needed = NEEDS[params.action];
@@ -39,6 +43,7 @@ export const POST = api(async (req, { params }: { params: { id: string; action: 
   const user = await apiUser();
   const db = await getDb();
   const { event } = await eventAccess(db, params.id, user, needed);
+  if (STEP_UP.has(params.action)) await requireStepUp();
   const body = await req.json().catch(() => ({}));
   const ensurePledge = async (pledgeId: string) => {
     const r = await db.query('SELECT 1 FROM pledges WHERE id=$1 AND event_id=$2', [pledgeId, event.id]);
@@ -98,6 +103,11 @@ export const POST = api(async (req, { params }: { params: { id: string; action: 
         details: z.record(z.string().max(200)),
       }).parse(body);
       await updateEventDetails(db, event.id, user.id, b);
+      break;
+    }
+    case 'transfer-owner': {
+      const b = z.object({ userId: z.string().max(40) }).parse(body);
+      await transferOwnership(db, event.id, user.id, b.userId);
       break;
     }
     case 'settings': {

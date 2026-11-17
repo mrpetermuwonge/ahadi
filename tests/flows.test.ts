@@ -664,3 +664,132 @@ describe('roles and permissions on an event (RBAC)', () => {
     await expect(secondApprove(db, p.id, owner.id)).rejects.toThrow('same_person');
   });
 });
+
+describe('step-up, admin roles, handover and analytics (v1.21)', () => {
+  it('a fresh code is needed for money actions, and it expires', async () => {
+    const { hasFreshStepUp, sendStepUpCode, verifyStepUp } = await import('@/lib/services/stepUp');
+    const { createSession } = await import('@/lib/services/auth');
+    const u = await mkUser('+256700000601');
+    const token = await createSession(db, u.id);
+    expect(await hasFreshStepUp(db, token)).toBe(false);
+    const r = await sendStepUpCode(db, u);
+    await verifyStepUp(db, u, token, r.devCode!);
+    expect(await hasFreshStepUp(db, token)).toBe(true);
+    await db.query(`UPDATE sessions SET stepped_up_at = now() - interval '11 minutes'`);
+    expect(await hasFreshStepUp(db, token)).toBe(false);
+  });
+
+  it('admin sessions are short, organizer sessions are long', async () => {
+    const { createSession } = await import('@/lib/services/auth');
+    const admin = await mkUser('+256700000602', true);
+    const org = await mkUser('+256700000603');
+    await createSession(db, admin.id);
+    await createSession(db, org.id);
+    const rows = await db.query(`SELECT user_id, EXTRACT(EPOCH FROM (expires_at - created_at))/3600 AS h FROM sessions`);
+    const h = (id: string) => Number(rows.find((r: any) => r.user_id === id).h);
+    expect(h(admin.id)).toBeLessThanOrEqual(8.01);
+    expect(h(org.id)).toBeGreaterThan(24 * 29);
+  });
+
+  it('each admin role gets only its own powers', async () => {
+    const { adminCan } = await import('@/lib/adminPermissions');
+    const as = (r: string) => ({ is_admin: true, admin_role: r });
+    expect(adminCan(as('super'), 'team.manage')).toBe(true);
+    expect(adminCan(as('finance'), 'payouts.review')).toBe(true);
+    expect(adminCan(as('finance'), 'events.freeze')).toBe(false);
+    expect(adminCan(as('trust'), 'events.freeze')).toBe(true);
+    expect(adminCan(as('trust'), 'payouts.review')).toBe(false);
+    expect(adminCan(as('support'), 'admin.view')).toBe(true);
+    for (const p of ['payouts.review', 'events.freeze', 'settings.edit', 'team.manage', 'accounts.recover'] as const) expect(adminCan(as('support'), p)).toBe(false);
+    expect(adminCan({ is_admin: false, admin_role: 'super' }, 'admin.view')).toBe(false);
+  });
+
+  it('admin team rules: never yourself, always one super admin', async () => {
+    const { setAdminRole } = await import('@/lib/services/adminTeam');
+    const s1 = await mkUser('+256700000604', true);
+    await db.query(`UPDATE users SET admin_role='super' WHERE id=$1`, [s1.id]);
+    await expect(setAdminRole(db, s1.id, '0700000604', 'support')).rejects.toMatchObject({ code: 'cannot_change_self' });
+    const s2 = await setAdminRole(db, s1.id, '0700000605', 'finance');
+    const [u2] = await db.query(`SELECT is_admin, admin_role FROM users WHERE id=$1`, [s2]);
+    expect(u2).toMatchObject({ is_admin: true, admin_role: 'finance' });
+    await setAdminRole(db, s1.id, '0700000605', 'super');
+    await setAdminRole(db, s2, '0700000604', 'trust'); // allowed: s2 is still a super admin
+    await expect(setAdminRole(db, s1.id, '0700000605', 'support')).rejects.toMatchObject({ code: 'last_super_admin' });
+  });
+
+  it('money settings need a second super admin; the proposer cannot approve', async () => {
+    const { changeSettings, decideProposal } = await import('@/lib/services/adminTeam');
+    const { getSettings } = await import('@/lib/settings');
+    const a = await mkUser('+256700000606', true);
+    const b = await mkUser('+256700000607', true);
+    await db.query(`UPDATE users SET admin_role='super' WHERE id IN ($1,$2)`, [a.id, b.id]);
+    const r = await changeSettings(db, a.id, { fee_percent: 4, home_max_events: 9 });
+    expect(r).toEqual({ applied: ['home_max_events'], proposed: ['fee_percent'] });
+    expect((await getSettings(db)).fee_percent).not.toBe(4);
+    const [p] = await db.query(`SELECT id FROM setting_proposals WHERE key='fee_percent'`);
+    await expect(decideProposal(db, a.id, p.id, true)).rejects.toMatchObject({ code: 'same_person' });
+    await decideProposal(db, b.id, p.id, true);
+    expect((await getSettings(db)).fee_percent).toBe(4);
+  });
+
+  it('organizer hands the event over; blocked while a withdrawal is in progress', async () => {
+    const { addMember, transferOwnership } = await import('@/lib/services/events');
+    const owner = await mkUser('+256700000608');
+    const tre = await mkUser('+256700000609');
+    const e = await mkEvent(owner);
+    await addMember(db, e.id, owner.id, '0700000609', 'treasurer');
+    await db.query(
+      `INSERT INTO payouts(id, event_id, account_id, amount, currency, status, requested_by)
+       SELECT $1, $2, a.id, 1000, 'UGX', 'in_review', $3 FROM payout_accounts a WHERE a.user_id=$3`, [newId('po'), e.id, owner.id]);
+    await expect(transferOwnership(db, e.id, owner.id, tre.id)).rejects.toMatchObject({ code: 'payout_in_progress' });
+    await db.query(`UPDATE payouts SET status='rejected' WHERE event_id=$1`, [e.id]);
+    await transferOwnership(db, e.id, owner.id, tre.id);
+    const roles = Object.fromEntries((await db.query(`SELECT user_id, role FROM event_members WHERE event_id=$1`, [e.id])).map((r: any) => [r.user_id, r.role]));
+    expect(roles).toEqual({ [tre.id]: 'owner', [owner.id]: 'viewer' });
+    const msgs = await db.query(`SELECT purpose FROM messages_log WHERE purpose IN ('owner_changed','role_changed')`);
+    expect(msgs.map((m: any) => m.purpose).sort()).toEqual(['owner_changed', 'role_changed']);
+  });
+
+  it('account recovery by a super admin replaces the organizer and needs a reason', async () => {
+    const { adminReassignOwner } = await import('@/lib/services/events');
+    const owner = await mkUser('+256700000610');
+    const admin = await mkUser('+256700000611', true);
+    const e = await mkEvent(owner);
+    await expect(adminReassignOwner(db, e.id, admin.id, '0700000612', 'short')).rejects.toMatchObject({ code: 'reason_required' });
+    await adminReassignOwner(db, e.id, admin.id, '0700000612', 'Lost phone; national ID checked in person');
+    const members = await db.query(`SELECT u.phone, m.role FROM event_members m JOIN users u ON u.id=m.user_id WHERE m.event_id=$1`, [e.id]);
+    expect(members).toEqual([{ phone: '+256700000612', role: 'owner' }]);
+  });
+
+  it('the treasurer is alerted when a withdrawal is requested', async () => {
+    const { addMember } = await import('@/lib/services/events');
+    const owner = await mkUser('+256700000613');
+    const e = await mkEvent(owner);
+    await addMember(db, e.id, owner.id, '0700000614', 'treasurer');
+    const p = await pledge(e.id, '0772111614', 100000);
+    const pay = await payFor(p.access_token, 100000);
+    await webhook(pay.id, 'succeeded');
+    const [acct] = await db.query(`SELECT id FROM payout_accounts WHERE user_id=$1`, [owner.id]);
+    await requestPayout(db, { eventId: e.id, userId: owner.id, accountId: acct.id, amount: 50000 });
+    const alerts = await db.query(`SELECT recipient FROM messages_log WHERE purpose='payout_requested'`);
+    expect(alerts.map((a: any) => a.recipient)).toEqual(['+256700000614']);
+  });
+
+  it('platform analytics agree with the ledger', async () => {
+    const { platformAnalytics } = await import('@/lib/services/adminAnalytics');
+    const owner = await mkUser('+256700000615');
+    const e = await mkEvent(owner);
+    const p = await pledge(e.id, '0772111615', 80000);
+    const pay = await payFor(p.access_token, 80000);
+    await webhook(pay.id, 'succeeded');
+    await pledge(e.id, '0772111616', 20000, 'later');
+    const a = await platformAnalytics(db, 30);
+    const t = await eventTotals(db, e.id);
+    expect(a.money.pledged).toBe(t.pledged);
+    expect(a.money.collected).toBe(t.collected);
+    expect(a.money.outstanding).toBe(t.outstanding);
+    expect(a.pledges.n).toBe(2);
+    expect(a.payments.successRate).toBe(100);
+    expect(a.revenue.fees).toBeGreaterThan(0);
+  });
+});

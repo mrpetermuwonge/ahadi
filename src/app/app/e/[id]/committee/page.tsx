@@ -32,7 +32,14 @@ export default async function CommitteePage({ params }: { params: { id: string }
                 <p className="text-sm text-muted">{t(`role.${m.role}` as Key)} · {t(`role.${m.role}.d` as Key)}</p>
               </div>
               {isOwner && m.user_id !== user.id && m.role !== 'owner' && (
-                <ActionButton eventId={e.id} action="remove-member" body={{ userId: m.user_id }} label={t('com.remove')} className="btn-ghost min-h-[40px] px-3 text-sm text-bad" />
+                <span className="flex flex-wrap gap-1 justify-end">
+                  {perms['committee.transfer'] && (
+                    <ActionButton eventId={e.id} action="transfer-owner" body={{ userId: m.user_id }} label={t('com.makeOrganizer')}
+                      confirmText={t('com.makeOrganizerConfirm', { name: m.name ?? (m.phone ? formatPhone(m.phone) : m.email) })}
+                      className="btn-outline min-h-[40px] px-3 text-sm" />
+                  )}
+                  <ActionButton eventId={e.id} action="remove-member" body={{ userId: m.user_id }} label={t('com.remove')} className="btn-ghost min-h-[40px] px-3 text-sm text-bad" />
+                </span>
               )}
             </li>
           ))}

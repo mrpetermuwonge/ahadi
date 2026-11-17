@@ -9,7 +9,7 @@
  * are separated by text. Celebratory (warm) and hospital/funeral (calm) events have separate wording.
  * Luganda is not a WhatsApp template language, so Luganda speakers receive the English template.
  */
-export type WaStage = 'pledged' | 'before' | 'due' | 'after' | 'thanks' | 'milestone' | 'invite';
+export type WaStage = 'pledged' | 'before' | 'due' | 'after' | 'thanks' | 'milestone' | 'invite' | 'payout_requested' | 'role_changed' | 'owner_changed';
 export type WaVariant = 'warm' | 'calm';
 export type WaLang = 'en' | 'sw';
 
@@ -22,10 +22,13 @@ export const WA_PARAMS: Record<WaStage, string[]> = {
   thanks: ['name', 'amount', 'event', 'link'],
   milestone: ['event', 'percent', 'link'],
   invite: ['event', 'link'],
+  payout_requested: ['amount', 'event', 'link'],
+  role_changed: ['event', 'role', 'link'],
+  owner_changed: ['event', 'link'],
 };
 
 /** Stages whose wording is the same for every event tone. */
-const TONELESS: WaStage[] = ['milestone', 'invite'];
+const TONELESS: WaStage[] = ['milestone', 'invite', 'payout_requested', 'role_changed', 'owner_changed'];
 
 type Bodies = Record<WaLang, Record<WaVariant, Record<WaStage, string>>>;
 
@@ -40,6 +43,9 @@ export const WA_BODIES: Bodies = {
       thanks: 'Thank you {name}! We received {amount} for {event}. Your receipt: {link} With gratitude, Ahadi.',
       milestone: 'Good news: {event} has reached {percent}% of its target. See your dashboard: {link} Ahadi.',
       invite: 'You have been added to the committee of {event} on Ahadi. Log in with this phone number: {link} Welcome!',
+      payout_requested: 'A withdrawal of {amount} was requested for {event} on Ahadi. Please review it: {link} Thank you.',
+      role_changed: 'Your role on the committee of {event} on Ahadi is now: {role}. Details: {link} Thank you.',
+      owner_changed: 'You are now the organizer of {event} on Ahadi. Open your dashboard: {link} Thank you.',
     },
     calm: {
       pledged: 'Thank you {name}. Your support of {amount} for {event} is recorded. View or pay here: {link} With gratitude.',
@@ -49,6 +55,9 @@ export const WA_BODIES: Bodies = {
       thanks: 'Thank you {name}. We received {amount} for {event}. Your receipt: {link} With gratitude, Ahadi.',
       milestone: 'Good news: {event} has reached {percent}% of its target. See your dashboard: {link} Ahadi.',
       invite: 'You have been added to the committee of {event} on Ahadi. Log in with this phone number: {link} Welcome!',
+      payout_requested: 'A withdrawal of {amount} was requested for {event} on Ahadi. Please review it: {link} Thank you.',
+      role_changed: 'Your role on the committee of {event} on Ahadi is now: {role}. Details: {link} Thank you.',
+      owner_changed: 'You are now the organizer of {event} on Ahadi. Open your dashboard: {link} Thank you.',
     },
   },
   sw: {
@@ -60,6 +69,9 @@ export const WA_BODIES: Bodies = {
       thanks: 'Asante {name}! Tumepokea {amount} kwa {event}. Risiti yako: {link} Kwa shukrani, Ahadi.',
       milestone: 'Habari njema: {event} imefikia {percent}% ya lengo. Tazama dashibodi: {link} Ahadi.',
       invite: 'Umeongezwa kwenye kamati ya {event} kwenye Ahadi. Ingia kwa namba hii ya simu: {link} Karibu!',
+      payout_requested: 'Ombi la kutoa {amount} limefanywa kwa {event} kwenye Ahadi. Tafadhali likague: {link} Asante.',
+      role_changed: 'Nafasi yako kwenye kamati ya {event} kwenye Ahadi sasa ni: {role}. Maelezo: {link} Asante.',
+      owner_changed: 'Sasa wewe ndiye mwandaaji wa {event} kwenye Ahadi. Fungua dashibodi yako: {link} Asante.',
     },
     calm: {
       pledged: 'Asante {name}. Mchango wako wa {amount} kwa {event} umerekodiwa. Tazama au lipa hapa: {link} Kwa shukrani.',
@@ -69,6 +81,9 @@ export const WA_BODIES: Bodies = {
       thanks: 'Asante {name}. Tumepokea {amount} kwa {event}. Risiti yako: {link} Kwa shukrani, Ahadi.',
       milestone: 'Habari njema: {event} imefikia {percent}% ya lengo. Tazama dashibodi: {link} Ahadi.',
       invite: 'Umeongezwa kwenye kamati ya {event} kwenye Ahadi. Ingia kwa namba hii ya simu: {link} Karibu!',
+      payout_requested: 'Ombi la kutoa {amount} limefanywa kwa {event} kwenye Ahadi. Tafadhali likague: {link} Asante.',
+      role_changed: 'Nafasi yako kwenye kamati ya {event} kwenye Ahadi sasa ni: {role}. Maelezo: {link} Asante.',
+      owner_changed: 'Sasa wewe ndiye mwandaaji wa {event} kwenye Ahadi. Fungua dashibodi yako: {link} Asante.',
     },
   },
 };
@@ -93,7 +108,7 @@ export function allWaTemplates() {
   const seen = new Set<string>();
   const sample: Record<string, string> = {
     name: 'Peter', amount: 'UGX 50,000', balance: 'UGX 200,000', event: "Sarah & John's Wedding", date: '12 Dec 2026',
-    link: 'https://ahadi.app/p/abc123', percent: '50',
+    link: 'https://ahadi.app/p/abc123', percent: '50', role: 'Treasurer',
   };
   for (const lang of ['en', 'sw'] as WaLang[]) {
     for (const variant of ['warm', 'calm'] as WaVariant[]) {

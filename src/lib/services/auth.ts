@@ -24,11 +24,13 @@ export class AuthError extends Error {
 }
 
 export type IdKind = 'phone' | 'email';
-export type CodePurpose = 'login' | 'add_phone' | 'pledger';
+export type CodePurpose = 'login' | 'add_phone' | 'pledger' | 'step_up';
 export type Channel = 'whatsapp' | 'sms' | 'email';
 
 const hashCode = (identifier: string, code: string) => sha256(`${APP_SECRET()}:${identifier}:${code}`);
 export const SESSION_DAYS = 30;
+/** Ahadi staff sessions are short: an admin login lasts one working day. */
+export const ADMIN_SESSION_HOURS = 8;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 export function normalizeEmail(raw: string): string | null {
@@ -160,13 +162,16 @@ async function ensurePhonePayoutAccount(db: Db, userId: string, phone: string) {
 
 export async function createSession(db: Db, userId: string): Promise<string> {
   const token = randomId(40);
-  await db.query(`INSERT INTO sessions(token_hash, user_id, expires_at) VALUES ($1,$2, now() + interval '${SESSION_DAYS} days')`, [sha256(token), userId]);
+  const [u] = await db.query<{ is_admin: boolean }>('SELECT is_admin FROM users WHERE id=$1', [userId]);
+  const life = u?.is_admin ? `${ADMIN_SESSION_HOURS} hours` : `${SESSION_DAYS} days`;
+  await db.query(`INSERT INTO sessions(token_hash, user_id, expires_at) VALUES ($1,$2, now() + interval '${life}')`, [sha256(token), userId]);
   return token;
 }
 
+/** People listed in ADMIN_PHONES / ADMIN_EMAILS are super admins (this is how the first admin is created). */
 async function promoteIfAdmin(db: Db, user: any) {
-  if (!user.is_admin && isAdminIdentity(user.phone, user.email)) {
-    await db.query('UPDATE users SET is_admin=true WHERE id=$1', [user.id]);
+  if (isAdminIdentity(user.phone, user.email) && (!user.is_admin || user.admin_role !== 'super')) {
+    await db.query(`UPDATE users SET is_admin=true, admin_role='super' WHERE id=$1`, [user.id]);
   }
 }
 

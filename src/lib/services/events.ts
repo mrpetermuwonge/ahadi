@@ -10,6 +10,7 @@ import { getSettings } from '../settings';
 import { localDate } from '../time';
 import { hasRole, roleFor, type Role } from './auth';
 import { can, permissionsFor, type Permission } from '../permissions';
+import { alertOwnerChanged, alertRoleChanged } from './committeeAlerts';
 
 export class EventError extends Error {
   constructor(public code: string) {
@@ -173,7 +174,7 @@ export async function addMember(db: Db, eventId: string, actor: string, rawPhone
   // accountable, and stops anyone giving away or losing control of the event by accident.
   if (!['treasurer', 'viewer'].includes(role)) throw new EventError('invalid_role');
   const [e] = await db.query('SELECT * FROM events WHERE id=$1', [eventId]);
-  await db.tx(async (q) => {
+  const r = await db.tx(async (q) => {
     let [u] = await q.query('SELECT * FROM users WHERE phone=$1', [phone]);
     if (!u) [u] = await q.query(`INSERT INTO users(id, phone) VALUES ($1,$2) RETURNING *`, [newId('usr'), phone]);
     if (u.id === actor) throw new EventError('cannot_change_self');
@@ -184,9 +185,15 @@ export async function addMember(db: Db, eventId: string, actor: string, rawPhone
        ON CONFLICT (event_id, user_id) DO UPDATE SET role=EXCLUDED.role`,
       [eventId, u.id, role, actor],
     );
-    await audit(q, { actor, action: 'member.role_set', entityType: 'user', entityId: u.id, eventId, details: { role } });
+    await audit(q, { actor, action: 'member.role_set', entityType: 'user', entityId: u.id, eventId, details: { role, before: cur?.role ?? null } });
+    return { userId: u.id as string, before: (cur?.role ?? null) as string | null };
   });
-  await notify(db, { to: phone, stage: 'invite', eventType: e.type, locale: 'en', purpose: 'invite', eventId, vars: { event: e.title, link: `${APP_URL()}/login` } });
+  // New member: an invitation. Existing member whose role changed: a "your role is now" message.
+  if (!r.before) {
+    await notify(db, { to: phone, stage: 'invite', eventType: e.type, locale: 'en', purpose: 'invite', eventId, vars: { event: e.title, link: `${APP_URL()}/login` } });
+  } else if (r.before !== role) {
+    await alertRoleChanged(db, eventId, r.userId, role as 'treasurer' | 'viewer');
+  }
 }
 
 export async function removeMember(db: Db, eventId: string, actor: string, userId: string) {
@@ -196,7 +203,70 @@ export async function removeMember(db: Db, eventId: string, actor: string, userI
   const owners = await db.query(`SELECT user_id FROM event_members WHERE event_id=$1 AND role='owner'`, [eventId]);
   if (owners.length === 1 && owners[0].user_id === userId) throw new EventError('last_owner');
   await db.query('DELETE FROM event_members WHERE event_id=$1 AND user_id=$2', [eventId, userId]);
-  await audit(db, { actor, action: 'member.removed', entityType: 'user', entityId: userId, eventId });
+  await audit(db, { actor, action: 'member.removed', entityType: 'user', entityId: userId, eventId, details: { before: cur?.role ?? null } });
+  if (cur) await alertRoleChanged(db, eventId, userId, 'removed');
+}
+
+/** Withdrawals that are not finished yet. Ownership can't change while one is in progress. */
+async function assertNoOpenPayouts(q: Db, eventId: string) {
+  const open = await q.query(
+    `SELECT 1 FROM payouts WHERE event_id=$1 AND status IN ('awaiting_second_approval','in_review','processing') LIMIT 1`,
+    [eventId],
+  );
+  if (open.length) throw new EventError('payout_in_progress');
+}
+
+/**
+ * The organizer hands the event over to someone already on its committee (e.g. the treasurer takes over).
+ * The old organizer stays on as a helper. Not allowed while a withdrawal is in progress, because withdrawals
+ * go to the organizer's own mobile money number.
+ */
+export async function transferOwnership(db: Db, eventId: string, actor: string, newOwnerId: string) {
+  if (newOwnerId === actor) throw new EventError('cannot_change_self');
+  await db.tx(async (q) => {
+    const [me] = await q.query(`SELECT role FROM event_members WHERE event_id=$1 AND user_id=$2 FOR UPDATE`, [eventId, actor]);
+    if (me?.role !== 'owner') throw new EventError('forbidden');
+    const [them] = await q.query(`SELECT role FROM event_members WHERE event_id=$1 AND user_id=$2 FOR UPDATE`, [eventId, newOwnerId]);
+    if (!them) throw new EventError('not_a_member');
+    await assertNoOpenPayouts(q, eventId);
+    await q.query(`UPDATE event_members SET role='owner' WHERE event_id=$1 AND user_id=$2`, [eventId, newOwnerId]);
+    await q.query(`UPDATE event_members SET role='viewer' WHERE event_id=$1 AND user_id=$2`, [eventId, actor]);
+    await q.query(`UPDATE events SET created_by=$2 WHERE id=$1`, [eventId, newOwnerId]);
+    await audit(q, { actor, action: 'event.ownership_transferred', entityType: 'event', entityId: eventId, eventId, details: { from: actor, to: newOwnerId, newRoleOfPrevious: 'viewer' } });
+  });
+  await alertOwnerChanged(db, eventId, newOwnerId);
+  await alertRoleChanged(db, eventId, actor, 'viewer');
+}
+
+/**
+ * Account recovery by Ahadi (super admin): the organizer lost their phone number, so a new number becomes the
+ * organizer after Ahadi has checked their identity outside the app. The old number is removed from the committee.
+ * The reason is required and kept in the audit log.
+ */
+export async function adminReassignOwner(db: Db, eventId: string, adminId: string, rawPhone: string, reason: string) {
+  const phone = normalizePhone(rawPhone);
+  if (!phone) throw new EventError('invalid_phone');
+  if (reason.trim().length < 10) throw new EventError('reason_required');
+  const newOwnerId = await db.tx(async (q) => {
+    const [e] = await q.query('SELECT * FROM events WHERE id=$1 FOR UPDATE', [eventId]);
+    if (!e) throw new EventError('not_found');
+    await assertNoOpenPayouts(q, eventId);
+    let [u] = await q.query('SELECT * FROM users WHERE phone=$1', [phone]);
+    if (!u) [u] = await q.query(`INSERT INTO users(id, phone) VALUES ($1,$2) RETURNING *`, [newId('usr'), phone]);
+    const old = await q.query(`SELECT user_id FROM event_members WHERE event_id=$1 AND role='owner'`, [eventId]);
+    await q.query(`DELETE FROM event_members WHERE event_id=$1 AND role='owner' AND user_id <> $2`, [eventId, u.id]);
+    await q.query(
+      `INSERT INTO event_members(event_id, user_id, role, added_by) VALUES ($1,$2,'owner',$3)
+       ON CONFLICT (event_id, user_id) DO UPDATE SET role='owner'`,
+      [eventId, u.id, adminId],
+    );
+    await q.query(`UPDATE events SET created_by=$2 WHERE id=$1`, [eventId, u.id]);
+    // The new number is proven only when its owner logs in with a code, which also makes it a payout destination.
+    await audit(q, { actor: adminId, action: 'admin.owner_reassigned', entityType: 'event', entityId: eventId, eventId,
+      details: { to: u.id, toPhone: phone, removedOwners: old.map((o) => o.user_id), reason: reason.trim() } });
+    return u.id as string;
+  });
+  await alertOwnerChanged(db, eventId, newOwnerId);
 }
 
 export async function updateEventSettings(

@@ -8,7 +8,7 @@ import { fillTemplate } from './sms';
  * Variables: {name} {event} {amount} {balance} {date} {link} {percent}
  * Luganda and Swahili drafts should be reviewed by a native speaker before launch.
  */
-type Stage = 'before' | 'due' | 'after' | 'thanks' | 'milestone' | 'invite' | 'otp' | 'pledged';
+type Stage = 'before' | 'due' | 'after' | 'thanks' | 'milestone' | 'invite' | 'otp' | 'pledged' | 'payout_requested' | 'role_changed' | 'owner_changed';
 type Variant = 'warm' | 'calm';
 const T: Record<string, Record<Variant, Partial<Record<Stage, string>>>> = {
   en: {
@@ -20,6 +20,9 @@ const T: Record<string, Record<Variant, Partial<Record<Stage, string>>>> = {
       thanks: 'Thank you {name}! We received {amount} for {event}. Receipt: {link}',
       milestone: 'Great news! {event} has reached {percent}% of its target. See the dashboard: {link}',
       invite: 'You have been added to the committee of {event} on Ahadi. Log in with this phone number: {link}',
+      payout_requested: 'A withdrawal of {amount} was requested for {event} on Ahadi. Please review it: {link} Thank you.',
+      role_changed: 'Your role on the committee of {event} on Ahadi is now: {role}. Details: {link} Thank you.',
+      owner_changed: 'You are now the organizer of {event} on Ahadi. Open your dashboard: {link} Thank you.',
     },
     calm: {
       pledged: 'Thank you {name}. Your support of {amount} for {event} is recorded. View or pay here: {link}',
@@ -29,6 +32,9 @@ const T: Record<string, Record<Variant, Partial<Record<Stage, string>>>> = {
       thanks: 'Thank you {name}. We received {amount} for {event}. Receipt: {link}',
       milestone: '{event} has reached {percent}% of the amount needed. Dashboard: {link}',
       invite: 'You have been added to the committee of {event} on Ahadi. Log in with this phone number: {link}',
+      payout_requested: 'A withdrawal of {amount} was requested for {event} on Ahadi. Please review it: {link} Thank you.',
+      role_changed: 'Your role on the committee of {event} on Ahadi is now: {role}. Details: {link} Thank you.',
+      owner_changed: 'You are now the organizer of {event} on Ahadi. Open your dashboard: {link} Thank you.',
     },
   },
   lg: {
@@ -40,6 +46,9 @@ const T: Record<string, Record<Variant, Partial<Record<Stage, string>>>> = {
       thanks: 'Webale nnyo {name}! Tufunye {amount} eri {event}. Lisiiti: {link}',
       milestone: '{event} etuuse ku {percent}% ku kigendererwa. {link}',
       invite: 'Oyongeddwa ku kakiiko ka {event} ku Ahadi. Yingira n\'ennamba eno: {link}',
+      payout_requested: 'Waliwo asabye okuggyayo {amount} ku {event} ku Ahadi. Kyekenneenye: {link}',
+      role_changed: 'Ekifo kyo ku kakiiko ka {event} ku Ahadi kati: {role}. {link}',
+      owner_changed: 'Kati ggwe mutegesi wa {event} ku Ahadi. Ggulawo dashibodi yo: {link}',
     },
     calm: {
       pledged: 'Webale {name}. Obuyambi bwo bwa {amount} eri {event} buwandiikiddwa. {link}',
@@ -49,6 +58,9 @@ const T: Record<string, Record<Variant, Partial<Record<Stage, string>>>> = {
       thanks: 'Webale {name}. Tufunye {amount} eri {event}. Lisiiti: {link}',
       milestone: '{event} etuuse ku {percent}% ku ssente ezeetaagibwa. {link}',
       invite: 'Oyongeddwa ku kakiiko ka {event} ku Ahadi. Yingira n\'ennamba eno: {link}',
+      payout_requested: 'Waliwo asabye okuggyayo {amount} ku {event} ku Ahadi. Kyekenneenye: {link}',
+      role_changed: 'Ekifo kyo ku kakiiko ka {event} ku Ahadi kati: {role}. {link}',
+      owner_changed: 'Kati ggwe mutegesi wa {event} ku Ahadi. Ggulawo dashibodi yo: {link}',
     },
   },
   sw: {
@@ -60,6 +72,9 @@ const T: Record<string, Record<Variant, Partial<Record<Stage, string>>>> = {
       thanks: 'Asante {name}! Tumepokea {amount} kwa {event}. Risiti: {link}',
       milestone: '{event} imefikia {percent}% ya lengo. {link}',
       invite: 'Umeongezwa kwenye kamati ya {event} kwenye Ahadi. Ingia kwa namba hii: {link}',
+      payout_requested: 'Ombi la kutoa {amount} limefanywa kwa {event} kwenye Ahadi. Tafadhali likague: {link} Asante.',
+      role_changed: 'Nafasi yako kwenye kamati ya {event} kwenye Ahadi sasa ni: {role}. Maelezo: {link} Asante.',
+      owner_changed: 'Sasa wewe ndiye mwandaaji wa {event} kwenye Ahadi. Fungua dashibodi yako: {link} Asante.',
     },
     calm: {
       pledged: 'Asante {name}. Mchango wako wa {amount} kwa {event} umerekodiwa. {link}',
@@ -69,6 +84,9 @@ const T: Record<string, Record<Variant, Partial<Record<Stage, string>>>> = {
       thanks: 'Asante {name}. Tumepokea {amount} kwa {event}. Risiti: {link}',
       milestone: '{event} imefikia {percent}% ya kiasi kinachohitajika. {link}',
       invite: 'Umeongezwa kwenye kamati ya {event} kwenye Ahadi. Ingia kwa namba hii: {link}',
+      payout_requested: 'Ombi la kutoa {amount} limefanywa kwa {event} kwenye Ahadi. Tafadhali likague: {link} Asante.',
+      role_changed: 'Nafasi yako kwenye kamati ya {event} kwenye Ahadi sasa ni: {role}. Maelezo: {link} Asante.',
+      owner_changed: 'Sasa wewe ndiye mwandaaji wa {event} kwenye Ahadi. Fungua dashibodi yako: {link} Asante.',
     },
   },
 };

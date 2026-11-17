@@ -12,7 +12,7 @@ function waitForOnline(): Promise<void> {
  * POST JSON. If the connection drops, waits until the device is back online and sends again.
  * Callers pass an idempotency key in the body for money actions, so a resend can never double-charge.
  */
-export async function apiSend<T = any>(url: string, body: unknown, opts: { method?: string; onQueued?: () => void } = {}): Promise<ApiResult<T>> {
+export async function apiSend<T = any>(url: string, body: unknown, opts: { method?: string; onQueued?: () => void; steppedUp?: boolean } = {}): Promise<ApiResult<T>> {
   for (let attempt = 0; attempt < 4; attempt++) {
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       opts.onQueued?.();
@@ -26,6 +26,12 @@ export async function apiSend<T = any>(url: string, body: unknown, opts: { metho
         credentials: 'same-origin',
       });
       const json = await res.json().catch(() => ({}));
+      // Money and committee actions may ask for a fresh code first: show "Confirm it's you", then retry once.
+      if (res.status === 401 && json.error === 'step_up_required' && typeof window !== 'undefined' && window.__ahadiStepUp && !opts.steppedUp) {
+        const ok = await window.__ahadiStepUp();
+        if (!ok) return { ok: false, error: 'step_up_cancelled', status: 401 };
+        return apiSend<T>(url, body, { ...opts, steppedUp: true });
+      }
       if (!res.ok) return { ok: false, error: json.error ?? 'generic', extra: json.extra, status: res.status };
       return { ok: true, data: json as T };
     } catch {

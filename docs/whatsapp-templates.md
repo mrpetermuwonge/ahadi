@@ -10,7 +10,7 @@ Create each template in **WhatsApp Manager → Message templates → Create temp
 - Languages: English (`en`) and Swahili (`sw`).
 - Code delivery: **Copy code** button. Meta writes the text for authentication templates; you only choose the options.
 
-## 2. Pledge and event messages (category: Utility) — 12 templates × 2 languages
+## 2. Pledge and event messages (category: Utility) — 15 templates × 2 languages
 
 | Template name | Used for | Variables in order |
 | --- | --- | --- |
@@ -21,6 +21,9 @@ Create each template in **WhatsApp Manager → Message templates → Create temp
 | `ahadi_thanks_warm` | Payment receipt (weddings, birthdays, community) | {{1}} name, {{2}} amount, {{3}} event, {{4}} link |
 | `ahadi_milestone` | Organizer: 25/50/75/100% reached | {{1}} event, {{2}} percent, {{3}} link |
 | `ahadi_invite` | Committee member added | {{1}} event, {{2}} link |
+| `ahadi_payout_requested` | Committee: a withdrawal was requested (to treasurers and other organizers) | {{1}} amount, {{2}} event, {{3}} link |
+| `ahadi_role_changed` | Committee: your role changed or you were removed | {{1}} event, {{2}} role, {{3}} link |
+| `ahadi_owner_changed` | Committee: you are now the organizer | {{1}} event, {{2}} link |
 | `ahadi_pledged_calm` | Pledge recorded (and personal link re-sent) (hospital, funeral) | {{1}} name, {{2}} amount, {{3}} event, {{4}} link |
 | `ahadi_before_calm` | Reminder before the due date (hospital, funeral) | {{1}} name, {{2}} balance, {{3}} event, {{4}} date, {{5}} link |
 | `ahadi_due_calm` | Reminder on the due date (hospital, funeral) | {{1}} name, {{2}} balance, {{3}} event, {{4}} link |
@@ -149,6 +152,60 @@ Sample values: {{1}} = Sarah & John's Wedding · {{2}} = https://ahadi.app/p/abc
 
 ```
 Umeongezwa kwenye kamati ya {{1}} kwenye Ahadi. Ingia kwa namba hii ya simu: {{2}} Karibu!
+```
+
+Sample values: {{1}} = Sarah & John's Wedding · {{2}} = https://ahadi.app/p/abc123
+
+### `ahadi_payout_requested`
+
+**English (en)**
+
+```
+A withdrawal of {{1}} was requested for {{2}} on Ahadi. Please review it: {{3}} Thank you.
+```
+
+Sample values: {{1}} = UGX 50,000 · {{2}} = Sarah & John's Wedding · {{3}} = https://ahadi.app/p/abc123
+
+**Swahili (sw)**
+
+```
+Ombi la kutoa {{1}} limefanywa kwa {{2}} kwenye Ahadi. Tafadhali likague: {{3}} Asante.
+```
+
+Sample values: {{1}} = UGX 50,000 · {{2}} = Sarah & John's Wedding · {{3}} = https://ahadi.app/p/abc123
+
+### `ahadi_role_changed`
+
+**English (en)**
+
+```
+Your role on the committee of {{1}} on Ahadi is now: {{2}}. Details: {{3}} Thank you.
+```
+
+Sample values: {{1}} = Sarah & John's Wedding · {{2}} = Treasurer · {{3}} = https://ahadi.app/p/abc123
+
+**Swahili (sw)**
+
+```
+Nafasi yako kwenye kamati ya {{1}} kwenye Ahadi sasa ni: {{2}}. Maelezo: {{3}} Asante.
+```
+
+Sample values: {{1}} = Sarah & John's Wedding · {{2}} = Treasurer · {{3}} = https://ahadi.app/p/abc123
+
+### `ahadi_owner_changed`
+
+**English (en)**
+
+```
+You are now the organizer of {{1}} on Ahadi. Open your dashboard: {{2}} Thank you.
+```
+
+Sample values: {{1}} = Sarah & John's Wedding · {{2}} = https://ahadi.app/p/abc123
+
+**Swahili (sw)**
+
+```
+Sasa wewe ndiye mwandaaji wa {{1}} kwenye Ahadi. Fungua dashibodi yako: {{2}} Asante.
 ```
 
 Sample values: {{1}} = Sarah & John's Wedding · {{2}} = https://ahadi.app/p/abc123

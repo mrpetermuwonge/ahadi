@@ -4,6 +4,7 @@ import { getLocale } from '@/i18n/server';
 import { I18nProvider } from '@/components/I18n';
 import { OfflineBanner } from '@/components/Ui';
 import { SwRegister } from '@/components/SwRegister';
+import { StepUpDialog } from '@/components/StepUpDialog';
 
 // Every page depends on the request (language cookie, session, live ledger), so never pre-render at build time.
 export const dynamic = 'force-dynamic';
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <OfflineBanner />
           {children}
           <SwRegister />
+          <StepUpDialog />
         </I18nProvider>
       </body>
     </html>

@@ -1,5 +1,6 @@
 import type { Db } from '../db';
 import { audit } from '../audit';
+import { alertPayoutRequested } from './committeeAlerts';
 import { EVENT_TYPES, type EventType } from '../eventTypes';
 import { newId } from '../ids';
 import { eventTotals, post, reverse } from '../ledger';
@@ -64,6 +65,8 @@ export async function requestPayout(db: Db, a: { eventId: string; userId: string
     await audit(q, { actor: a.userId, action: 'payout.requested', entityType: 'payout', entityId: id, eventId: a.eventId, details: { amount: a.amount, status } });
     return p;
   });
+  // Tell the treasurer(s) and other organizers straight away, so a withdrawal is never a surprise.
+  await alertPayoutRequested(db, payout);
   if (payout.status === 'processing') await executePayout(db, payout.id);
   return payout;
 }

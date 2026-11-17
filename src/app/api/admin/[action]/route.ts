@@ -4,13 +4,36 @@ import { getDb } from '@/lib/db';
 import { audit } from '@/lib/audit';
 import { adminReview } from '@/lib/services/payouts';
 import { runPendingPayments, runReconciliation, runReminders } from '@/lib/services/jobs';
-import { DEFAULT_SETTINGS, saveSetting, type SettingKey } from '@/lib/settings';
-import { api, apiUser, jsonError } from '@/lib/web';
+import { adminReassignOwner } from '@/lib/services/events';
+import { changeSettings, decideProposal, setAdminRole } from '@/lib/services/adminTeam';
+import type { AdminPermission, AdminRole } from '@/lib/adminPermissions';
+import { api, apiAdmin, jsonError, requireStepUp } from '@/lib/web';
 
-/** Admin overrides. Every one is audit-logged. */
+/**
+ * Admin actions. Each needs an admin permission (lib/adminPermissions.ts); the sensitive ones also need a fresh
+ * one-time code (step-up). Every action is audit-logged.
+ */
+const NEEDS: Record<string, AdminPermission> = {
+  freeze: 'events.freeze',
+  'verify-event': 'events.verify',
+  home: 'home.review',
+  'resolve-flag': 'flags.resolve',
+  'payout-review': 'payouts.review',
+  verification: 'verifications.review',
+  'resolve-recon': 'recon.resolve',
+  settings: 'settings.edit',
+  'setting-decide': 'settings.approve',
+  'run-jobs': 'jobs.run',
+  'team-set': 'team.manage',
+  'reassign-owner': 'accounts.recover',
+};
+const STEP_UP = new Set(['payout-review', 'settings', 'setting-decide', 'team-set', 'reassign-owner']);
+
 export const POST = api(async (req, { params }: { params: { action: string } }) => {
-  const user = await apiUser();
-  if (!user.is_admin) return jsonError('forbidden', 403);
+  const perm = NEEDS[params.action];
+  if (!perm) return jsonError('not_found', 404);
+  const user = await apiAdmin(perm);
+  if (STEP_UP.has(params.action)) await requireStepUp();
   const db = await getDb();
   const body = await req.json().catch(() => ({}));
   const log = (action: string, entityType: string, entityId: string, details?: unknown, eventId?: string) =>
@@ -68,18 +91,29 @@ export const POST = api(async (req, { params }: { params: { action: string } }) 
     }
     case 'settings': {
       const b = z.object({ values: z.record(z.unknown()) }).parse(body);
-      for (const [k, val] of Object.entries(b.values)) {
-        if (!(k in DEFAULT_SETTINGS)) continue;
-        await saveSetting(db, k as SettingKey, val, user.id);
-      }
-      await log('admin.settings', 'settings', 'global', b.values);
+      return NextResponse.json(await changeSettings(db, user.id, b.values));
+    }
+    case 'setting-decide': {
+      const b = z.object({ proposalId: z.string(), approve: z.boolean() }).parse(body);
+      await decideProposal(db, user.id, b.proposalId, b.approve);
       break;
     }
     case 'run-jobs': {
       const reminders = await runReminders(db);
       const pending = await runPendingPayments(db);
       const recon = await runReconciliation(db);
+      await log('admin.run_jobs', 'jobs', 'all');
       return NextResponse.json({ reminders, pending, recon });
+    }
+    case 'team-set': {
+      const b = z.object({ phone: z.string().max(30), role: z.enum(['super', 'finance', 'trust', 'support']).nullable() }).parse(body);
+      await setAdminRole(db, user.id, b.phone, b.role as AdminRole | null);
+      break;
+    }
+    case 'reassign-owner': {
+      const b = z.object({ eventId: z.string(), phone: z.string().max(30), reason: z.string().max(500) }).parse(body);
+      await adminReassignOwner(db, b.eventId, user.id, b.phone, b.reason);
+      break;
     }
     default:
       return jsonError('not_found', 404);

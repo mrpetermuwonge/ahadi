@@ -8,6 +8,8 @@ import { PaymentError } from './services/payments';
 import { EventError } from './services/events';
 import { PayoutError } from './services/payouts';
 import { ZodError } from 'zod';
+import { hasFreshStepUp } from './services/stepUp';
+import { adminCan, type AdminPermission } from './adminPermissions';
 
 export const SESSION_COOKIE = 'ahadi_session';
 
@@ -22,10 +24,27 @@ export async function requireUser(next?: string) {
   return u;
 }
 
-export async function requireAdmin() {
+export async function requireAdmin(perm: AdminPermission = 'admin.view') {
   const u = await requireUser('/admin');
   if (!u.is_admin) redirect('/app');
+  if (!adminCan(u, perm)) redirect('/admin');
   return u;
+}
+
+/** API: the caller must be Ahadi staff with this admin permission (lib/adminPermissions.ts). */
+export async function apiAdmin(perm: AdminPermission) {
+  const u = await apiUser();
+  if (!adminCan(u, perm)) throw new EventError('forbidden');
+  return u;
+}
+
+/**
+ * API: money and committee actions need a fresh one-time code (step-up), even for a logged-in user.
+ * The client shows "Confirm it's you", sends the code, and retries the action.
+ */
+export async function requireStepUp() {
+  const ok = await hasFreshStepUp(await getDb(), cookies().get(SESSION_COOKIE)?.value);
+  if (!ok) throw new AuthError('step_up_required');
 }
 
 /** CSRF protection for cookie-authenticated mutations: the request must come from our own origin. */
@@ -50,6 +69,7 @@ export function api<A extends unknown[]>(fn: (req: Request, ...rest: A) => Promi
       return await fn(req, ...rest);
     } catch (e) {
       if (e instanceof PledgeError) return jsonError(e.code, 400, e.extra);
+      if (e instanceof AuthError && e.code === 'step_up_required') return jsonError(e.code, 401);
       if (e instanceof PaymentError || e instanceof AuthError || e instanceof EventError) return jsonError(e.code, e.code === 'forbidden' ? 403 : 400);
       if (e instanceof PayoutError) return jsonError(e.message, 400);
       if (e instanceof ZodError) return jsonError('invalid_input', 400, e.issues.map((i) => i.path.join('.')));

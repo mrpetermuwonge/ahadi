@@ -255,5 +255,26 @@
       "Admin panel: Log out button on every admin page.",
       "4 new automated tests for roles (50 tests in total)."
     ]
+  },
+  {
+    "version": "1.21",
+    "date": "17 Nov 2026",
+    "title": "Fresh code for money actions, admin roles, admin analytics, committee alerts, handover and recovery",
+    "code_saved": true,
+    "changes": [
+      "\"Confirm it's you\": withdrawals (request and second approval), adding or removing committee members, handing an event over, adding a payout phone number and sensitive admin actions now need a fresh one-time code, even when logged in. One code covers 10 minutes. The action continues by itself after the code.",
+      "Admin roles: Super admin (everything), Finance (withdrawal reviews, reconciliation, revenue, analytics export, payment jobs), Trust & safety (reports, freezing, document checks, verified badge, homepage approvals) and Support (read-only). Every tab, button and admin action follows one table (src/lib/adminPermissions.ts), and the server checks again.",
+      "New Team tab: super admins add staff by phone, change their role or remove them. Nobody changes their own role, there is always at least one super admin, and a role change logs the person out.",
+      "Two-person rule for money settings (fees, prices, limits, tips): a second super admin must approve the change; the proposer cannot approve it.",
+      "Admin sessions last 8 hours (organizers stay 30 days). Admin pages show the staff role next to \"Admin\".",
+      "New Overview tab (admin analytics) for 7/30/90/365 days: work waiting for the team, money (pledged, collected, collection rate, outstanding, held for organizers, paid out, pending withdrawals, Ahadi revenue), a daily pledged-vs-collected chart, activity (events, pledges, fully paid rate, payment success, organizers, pledgers, trust, staff), event types, payment methods and failure reasons, top events, messages sent and events by organizer type. CSV export for Finance and Super admins. All figures come from the ledger.",
+      "Events tab: search by name, link or phone; open any event's dashboard read-only; public page link; super admins can change the organizer (account recovery) with a required reason.",
+      "Payouts tab shows who requested each withdrawal. The audit log highlights admin actions and shows the staff role.",
+      "WhatsApp alerts to the committee: a withdrawal was requested (to treasurers and other organizers), your role changed or you were removed, you are now the organizer. Three new WhatsApp templates (15 in total, see docs/whatsapp-templates.md).",
+      "Event handover: the organizer can make a committee member the organizer (Committee tab, \"Make organizer\"); the old organizer stays as a helper. Not allowed while a withdrawal is in progress.",
+      "Account recovery: a super admin can make a new phone number the organizer after checking the person's ID; the old organizer is removed and the reason is kept in the audit log.",
+      "Database change: migration 010 (admin roles, step-up time on sessions, setting proposals). Existing admins became super admins.",
+      "9 new automated tests (59 in total)."
+    ]
   }
 ]

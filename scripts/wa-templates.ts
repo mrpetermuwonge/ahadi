@@ -35,6 +35,9 @@ const USE: Record<string, string> = {
   thanks: 'Payment receipt',
   milestone: 'Organizer: 25/50/75/100% reached',
   invite: 'Committee member added',
+  payout_requested: 'Committee: a withdrawal was requested (to treasurers and other organizers)',
+  role_changed: 'Committee: your role changed or you were removed',
+  owner_changed: 'Committee: you are now the organizer',
 };
 for (const n of names) {
   const x = t.find((y) => y.name === n)!;

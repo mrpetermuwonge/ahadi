@@ -5,6 +5,7 @@ import { useT } from '@/components/I18n';
 import { Alert } from '@/components/Ui';
 import { apiSend } from '@/components/client-utils';
 
+/** One admin action. Sensitive ones ask for a fresh code first (handled by apiSend + the "Confirm it's you" dialog). */
 export function AdminButton({ action, body, label, primary }: { action: string; body: unknown; label: string; primary?: boolean }) {
   const { t } = useT();
   const router = useRouter();
@@ -15,8 +16,13 @@ export function AdminButton({ action, body, label, primary }: { action: string; 
       <button className={`${primary ? 'btn-primary' : 'btn-outline'} min-h-[36px] px-3 text-xs`} disabled={busy}
         onClick={async () => {
           let note = '';
-          if (action === 'payout-review' || action === 'verification') note = window.prompt(t('ledger.reason')) ?? '';
+          if (action === 'payout-review' || action === 'verification') {
+            const n = window.prompt(t('ledger.reason'));
+            if (n === null) return;
+            note = n;
+          }
           setBusy(true);
+          setError(null);
           const r = await apiSend(`/api/admin/${action}`, { ...(body as object), note });
           setBusy(false);
           if (!r.ok) setError(r.error);
@@ -24,35 +30,51 @@ export function AdminButton({ action, body, label, primary }: { action: string; 
         }}>
         {busy ? t('a.loading') : label}
       </button>
-      {error && <span role="alert" className="text-xs text-bad">{t(`err.${error}` as any)}</span>}
+      {error && error !== 'step_up_cancelled' && <span role="alert" className="text-xs text-bad">{t(`err.${error}` as any)}</span>}
     </span>
   );
 }
 
-/** Edit fees, prices, limits and feature flags without a deploy. Changes apply on the next request. */
-export function SettingsEditor({ values, keys }: { values: Record<string, unknown>; keys: string[] }) {
+/**
+ * Edit fees, prices, limits and feature flags without a deploy. Money settings (marked) need a second super admin
+ * to approve when there is more than one super admin.
+ */
+export function SettingsEditor({ values, keys, moneyKeys }: { values: Record<string, unknown>; keys: string[]; moneyKeys: string[] }) {
   const { t } = useT();
   const router = useRouter();
   const [v, setV] = useState<Record<string, string>>(() => Object.fromEntries(keys.map((k) => [k, typeof values[k] === 'object' ? JSON.stringify(values[k]) : String(values[k])])));
-  const [msg, setMsg] = useState<{ kind: 'ok' | 'bad'; text: string } | null>(null);
+  const [msg, setMsg] = useState<{ kind: 'ok' | 'bad' | 'info'; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
   return (
     <form className="card p-5" onSubmit={async (e) => {
       e.preventDefault();
       const out: Record<string, unknown> = {};
-      for (const k of keys) {
-        const orig = values[k];
-        out[k] = typeof orig === 'number' ? Number(v[k]) : typeof orig === 'boolean' ? v[k] === 'true' : JSON.parse(v[k] || 'null');
+      try {
+        for (const k of keys) {
+          const orig = values[k];
+          out[k] = typeof orig === 'number' ? Number(v[k]) : typeof orig === 'boolean' ? v[k] === 'true' : JSON.parse(v[k] || 'null');
+        }
+      } catch {
+        return setMsg({ kind: 'bad', text: t('err.invalid_input') });
       }
-      const r = await apiSend('/api/admin/settings', { values: out });
-      if (!r.ok) return setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
-      setMsg({ kind: 'ok', text: t('adm.saved') });
+      setBusy(true);
+      const r = await apiSend<{ applied: string[]; proposed: string[] }>('/api/admin/settings', { values: out });
+      setBusy(false);
+      if (!r.ok) return r.error === 'step_up_cancelled' ? undefined : setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
+      const parts = [];
+      if (r.data.applied.length) parts.push(t('ax.applied', { k: r.data.applied.join(', ') }));
+      if (r.data.proposed.length) parts.push(t('ax.proposed', { k: r.data.proposed.join(', ') }));
+      setMsg({ kind: r.data.proposed.length ? 'info' : 'ok', text: parts.join(' ') || t('ax.noChanges') });
       router.refresh();
     }}>
       <h2 className="font-bold">{t('adm.settings')}</h2>
+      <p className="text-sm text-muted">{t('ax.settingsHint')}</p>
       <div className="grid sm:grid-cols-2 gap-3 mt-4">
         {keys.map((k) => (
           <div key={k}>
-            <label className="label font-mono text-xs" htmlFor={`s-${k}`}>{k}</label>
+            <label className="label font-mono text-xs flex items-center gap-1" htmlFor={`s-${k}`}>
+              {k}{moneyKeys.includes(k) && <span className="chip bg-accent/25 text-ink text-[10px]">{t('ax.twoPerson')}</span>}
+            </label>
             {typeof values[k] === 'boolean' ? (
               <select id={`s-${k}`} className="input" value={v[k]} onChange={(e) => setV({ ...v, [k]: e.target.value })}>
                 <option value="true">true</option><option value="false">false</option>
@@ -64,7 +86,7 @@ export function SettingsEditor({ values, keys }: { values: Record<string, unknow
         ))}
       </div>
       {msg && <div className="mt-4"><Alert kind={msg.kind}>{msg.text}</Alert></div>}
-      <button className="btn-primary mt-4">{t('a.save')}</button>
+      <button className="btn-primary mt-4" disabled={busy}>{busy ? t('a.loading') : t('a.save')}</button>
     </form>
   );
 }
@@ -81,6 +103,77 @@ export function RunJobs() {
         router.refresh();
       }}>{t('adm.runJobs')}</button>
       {res && <p className="text-xs mt-2 break-all">{t('adm.jobsDone', { r: res })}</p>}
+    </div>
+  );
+}
+
+/** Add a staff member, change their admin role, or remove them (super admins only). */
+export function TeamForm() {
+  const { t } = useT();
+  const router = useRouter();
+  const [phone, setPhone] = useState('');
+  const [role, setRole] = useState<'super' | 'finance' | 'trust' | 'support' | 'none'>('support');
+  const [msg, setMsg] = useState<{ kind: 'ok' | 'bad'; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  return (
+    <form className="card p-5 space-y-3" onSubmit={async (e) => {
+      e.preventDefault();
+      setBusy(true);
+      setMsg(null);
+      const r = await apiSend('/api/admin/team-set', { phone, role: role === 'none' ? null : role });
+      setBusy(false);
+      if (!r.ok) return r.error === 'step_up_cancelled' ? undefined : setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
+      setMsg({ kind: 'ok', text: t('ax.teamSaved') });
+      setPhone('');
+      router.refresh();
+    }}>
+      <h2 className="font-bold">{t('ax.teamManage')}</h2>
+      <p className="text-sm text-muted">{t('ax.teamHint')}</p>
+      <div>
+        <label className="label" htmlFor="team-phone">{t('acct.phone')}</label>
+        <input id="team-phone" className="input" inputMode="tel" placeholder="0772 123 456" value={phone} onChange={(e) => setPhone(e.target.value)} />
+      </div>
+      <div>
+        <label className="label" htmlFor="team-role">{t('ax.adminRole')}</label>
+        <select id="team-role" className="input" value={role} onChange={(e) => setRole(e.target.value as typeof role)}>
+          {(['support', 'trust', 'finance', 'super'] as const).map((r) => <option key={r} value={r}>{t(`ax.role.${r}` as any)}</option>)}
+          <option value="none">{t('ax.removeAdmin')}</option>
+        </select>
+      </div>
+      {msg && <Alert kind={msg.kind}>{msg.text}</Alert>}
+      <button className="btn-primary" disabled={busy || phone.length < 9}>{busy ? t('a.loading') : t('a.save')}</button>
+    </form>
+  );
+}
+
+/** Account recovery: a new phone number becomes the organizer after Ahadi checked their identity (super admins). */
+export function ReassignOwner({ eventId }: { eventId: string }) {
+  const { t } = useT();
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [phone, setPhone] = useState('');
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  if (!open) return <button type="button" className="btn-outline min-h-[36px] px-3 text-xs" onClick={() => setOpen(true)}>{t('ax.recover')}</button>;
+  return (
+    <div className="mt-2 text-left rounded-xl border-2 border-accent/60 bg-accent-soft/40 p-3 space-y-2 min-w-[260px]">
+      <p className="text-xs font-semibold">{t('ax.recoverHint')}</p>
+      <input className="input" inputMode="tel" placeholder={t('ax.newOrganizerPhone')} value={phone} onChange={(e) => setPhone(e.target.value)} aria-label={t('ax.newOrganizerPhone')} />
+      <textarea className="input" rows={2} placeholder={t('ax.recoverReason')} value={reason} onChange={(e) => setReason(e.target.value)} aria-label={t('ax.recoverReason')} />
+      {error && error !== 'step_up_cancelled' && <p role="alert" className="text-xs text-bad">{t(`err.${error}` as any)}</p>}
+      <div className="flex gap-2">
+        <button type="button" className="btn-primary min-h-[36px] px-3 text-xs" disabled={busy} onClick={async () => {
+          setBusy(true);
+          setError(null);
+          const r = await apiSend('/api/admin/reassign-owner', { eventId, phone, reason });
+          setBusy(false);
+          if (!r.ok) return setError(r.error);
+          setOpen(false);
+          router.refresh();
+        }}>{busy ? t('a.loading') : t('ax.recoverConfirm')}</button>
+        <button type="button" className="btn-ghost min-h-[36px] px-3 text-xs" onClick={() => setOpen(false)}>{t('a.cancel')}</button>
+      </div>
     </div>
   );
 }
