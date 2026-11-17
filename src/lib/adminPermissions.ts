@@ -3,8 +3,9 @@
  * and the admin API (which always checks again).
  *
  *  - super    Everything, including the admin team, global settings and account recovery.
- *  - finance  Money: withdrawals review, reconciliation, revenue, refunds view, running the payment jobs.
- *  - trust    Safety: reports, freezing events, document verification, verified badge, homepage approvals.
+ *  - finance  Money: withdrawals review, refunds, reconciliation, revenue, running the payment jobs.
+ *  - trust    Safety: reports, freezing events, document verification, verified badge, homepage approvals,
+ *             erasing a person's data on request.
  *  - support  Read-only: sees everything to help people, changes nothing.
  *
  * Every admin can see the analytics overview, events, the audit log and settings (read-only).
@@ -29,7 +30,12 @@ export type AdminPermission =
   | 'settings.approve'
   | 'team.manage'
   | 'accounts.recover'
-  | 'audit.view';
+  | 'audit.view'
+  | 'payments.view'
+  | 'payments.refund'
+  | 'privacy.erase'
+  | 'ops.view'
+  | 'ops.run';
 
 const MATRIX: Record<AdminPermission, readonly AdminRole[]> = {
   'admin.view': ['super', 'finance', 'trust', 'support'],
@@ -49,6 +55,11 @@ const MATRIX: Record<AdminPermission, readonly AdminRole[]> = {
   'team.manage': ['super'],
   'accounts.recover': ['super'],
   'audit.view': ['super', 'finance', 'trust', 'support'],
+  'payments.view': ['super', 'finance', 'trust', 'support'],
+  'payments.refund': ['super', 'finance'],
+  'privacy.erase': ['super', 'trust'],
+  'ops.view': ['super', 'finance', 'trust', 'support'],
+  'ops.run': ['super'],
 };
 
 /** Settings that move money or change what people pay: changing them needs a second super admin. */

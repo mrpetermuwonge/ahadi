@@ -10,7 +10,9 @@ import { getSettings, DEFAULT_SETTINGS } from '@/lib/settings';
 import { Logo } from '@/components/Brand';
 import { LangSwitcher } from '@/components/Ui';
 import { LogoutButton } from '@/app/app/LogoutButton';
-import { AdminButton, SettingsEditor, RunJobs, TeamForm, ReassignOwner } from './AdminClient';
+import { AdminButton, SettingsEditor, RunJobs, TeamForm, ReassignOwner, EraseForm, OpsButton } from './AdminClient';
+import { backupDir, health, opsRuns, BACKUP_KEEP } from '@/lib/services/ops';
+import { PRIVACY_VERSION, RETENTION } from '@/lib/privacy';
 import { Alert } from '@/components/Ui';
 import { codesOnScreen } from '@/lib/services/auth';
 import { platformAnalytics } from '@/lib/services/adminAnalytics';
@@ -21,20 +23,22 @@ import type { Key } from '@/i18n';
 export const metadata = { title: 'Admin', robots: { index: false } };
 
 type Perms = Record<AdminPermission, boolean>;
-const TABS = ['overview', 'events', 'flags', 'payouts', 'verifications', 'revenue', 'settings', 'recon', 'audit', 'team'] as const;
+const TABS = ['overview', 'events', 'payments', 'flags', 'payouts', 'verifications', 'revenue', 'settings', 'recon', 'privacy', 'system', 'audit', 'team'] as const;
 type Tab = (typeof TABS)[number];
 const TAB_KEY: Record<Tab, Key> = {
   overview: 'ax.overview', events: 'adm.events', flags: 'adm.flags', payouts: 'adm.payouts', verifications: 'adm.verifications',
   revenue: 'adm.revenue', settings: 'adm.settings', recon: 'adm.recon', audit: 'adm.audit', team: 'ax.team',
+  payments: 'ax.payments', privacy: 'ax.privacy', system: 'ax.system',
 };
 /** Which permission lets a staff member open each tab. */
 const TAB_PERM: Record<Tab, AdminPermission> = {
   overview: 'admin.view', events: 'admin.view', flags: 'admin.view', payouts: 'payouts.view', verifications: 'admin.view',
   revenue: 'revenue.view', settings: 'admin.view', recon: 'admin.view', audit: 'audit.view', team: 'admin.view',
+  payments: 'payments.view', privacy: 'admin.view', system: 'ops.view',
 };
 const PERIODS = [7, 30, 90, 365];
 
-export default async function AdminPage({ searchParams }: { searchParams: { tab?: string; days?: string; q?: string } }) {
+export default async function AdminPage({ searchParams }: { searchParams: { tab?: string; days?: string; q?: string; pq?: string } }) {
   const user = await requireAdmin();
   const { t } = getT();
   const perms = adminPermissionsFor(user);
@@ -83,6 +87,9 @@ export default async function AdminPage({ searchParams }: { searchParams: { tab?
         {tab === 'recon' && <ReconTab perms={perms} />}
         {tab === 'audit' && <AuditTab />}
         {tab === 'team' && <TeamTab perms={perms} userId={user.id} />}
+        {tab === 'payments' && <PaymentsTab perms={perms} q={searchParams.pq ?? ''} />}
+        {tab === 'privacy' && <PrivacyTab perms={perms} />}
+        {tab === 'system' && <SystemTab perms={perms} />}
       </main>
     </div>
   );
@@ -601,6 +608,147 @@ async function TeamTab({ perms, userId }: { perms: Perms; userId: string }) {
         </ul>
       </section>
       {perms['team.manage'] && <TeamForm />}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ Payments, privacy, system */
+
+async function PaymentsTab({ perms, q }: { perms: Perms; q: string }) {
+  const db = await getDb();
+  const { t } = getT();
+  const term = q.trim();
+  const digits = term.replace(/\D/g, '');
+  const rows = await db.query(
+    `SELECT p.id, p.status, p.method, p.purpose, p.charged_amount, p.currency, p.receipt_no, p.created_at, p.payer_phone, p.failure_reason,
+            e.title, e.id AS event_id, pg.display_name
+       FROM payments p LEFT JOIN events e ON e.id=p.event_id LEFT JOIN pledges pg ON pg.id=p.pledge_id
+      WHERE ($1 = '' OR p.receipt_no ILIKE '%' || $1 || '%' OR p.id = $1 OR ($2 <> '' AND p.payer_phone LIKE '%' || $2 || '%') OR e.title ILIKE '%' || $1 || '%')
+      ORDER BY p.created_at DESC LIMIT 100`,
+    [term, digits.length >= 6 ? digits.slice(-9) : ''],
+  );
+  const tone: Record<string, string> = { succeeded: 'text-ok', failed: 'text-bad', expired: 'text-muted', refunded: 'text-warn', refunding: 'text-warn', pending: 'text-muted' };
+  return (
+    <div className="space-y-3">
+      <form className="flex gap-2" action="/admin">
+        <input type="hidden" name="tab" value="payments" />
+        <input name="pq" defaultValue={term} className="input" placeholder={t('ax.paySearch')} aria-label={t('ax.paySearch')} />
+        <button className="btn-outline px-4">{t('ax.find')}</button>
+      </form>
+      <p className="text-xs text-muted">{t('ax.refundHint')}</p>
+      {rows.length === 0 ? <Empty /> : (
+        <div className="card overflow-x-auto">
+          <table className="w-full text-sm min-w-[860px]">
+            <thead><tr className="text-left text-muted border-b border-line">
+              <th className="p-3">{t('ledger.date')}</th><th className="p-3">{t('rc.event')}</th><th className="p-3">{t('ax.method')}</th>
+              <th className="p-3 text-right">{t('ax.amount')}</th><th className="p-3">{t('ax.status')}</th><th className="p-3" />
+            </tr></thead>
+            <tbody>
+              {rows.map((p) => (
+                <tr key={p.id} className="border-b border-line/60 align-top">
+                  <td className="p-3 whitespace-nowrap">{new Date(p.created_at).toISOString().slice(0, 16).replace('T', ' ')}</td>
+                  <td className="p-3">
+                    <span className="font-semibold">{p.title ?? t(`ax.purpose.${p.purpose}` as Key)}</span>
+                    <span className="block text-xs text-muted">{p.display_name ?? ''}{p.payer_phone ? ` · ${formatPhone(p.payer_phone)}` : ''}{p.receipt_no ? ` · ` : ''}{p.receipt_no && <a className="underline" href={`/r/${p.receipt_no}`} target="_blank" rel="noopener">{p.receipt_no}</a>}</span>
+                  </td>
+                  <td className="p-3 uppercase">{p.method}</td>
+                  <td className="p-3 text-right whitespace-nowrap">{formatMoney(Number(p.charged_amount), p.currency)}</td>
+                  <td className={`p-3 font-semibold ${tone[p.status] ?? ''}`}>{p.status}{p.failure_reason ? <span className="block text-xs font-normal text-muted">{p.failure_reason}</span> : null}</td>
+                  <td className="p-3 text-right">
+                    {perms['payments.refund'] && p.status === 'succeeded' && <AdminButton action="refund" body={{ paymentId: p.id }} label={t('ax.refund')} />}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+async function PrivacyTab({ perms }: { perms: Perms }) {
+  const db = await getDb();
+  const { t } = getT();
+  const [c] = await db.query(
+    `SELECT COUNT(*) FILTER (WHERE deleted_at IS NULL)::int AS active, COUNT(*) FILTER (WHERE deleted_at IS NOT NULL)::int AS erased,
+            COUNT(*) FILTER (WHERE consent_version = $1)::int AS current_version FROM pledgers`, [PRIVACY_VERSION]);
+  const versions = await db.query(`SELECT COALESCE(consent_version, 'unknown') AS v, COUNT(*)::int AS n FROM pledgers WHERE deleted_at IS NULL GROUP BY 1 ORDER BY 1 DESC`);
+  const recent = await db.query(`SELECT a.created_at, a.details, COALESCE(u.phone, 'self') AS who FROM audit_logs a LEFT JOIN users u ON u.id=a.actor_user_id WHERE a.action='pledger.deleted' ORDER BY a.id DESC LIMIT 20`);
+  const [last] = await db.query(`SELECT created_at, details FROM ops_runs WHERE kind='retention' ORDER BY created_at DESC LIMIT 1`);
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Kpi label={t('ax.pledgersActive')} value={String(c.active)} />
+        <Kpi label={t('ax.consentCurrent')} value={String(c.current_version)} sub={t('ax.version', { v: PRIVACY_VERSION })} />
+        <Kpi label={t('ax.erasedCount')} value={String(c.erased)} />
+        <Kpi label={t('ax.lastCleanup')} value={last ? new Date(last.created_at).toISOString().slice(0, 10) : '—'} />
+      </div>
+      <section className="card p-5">
+        <h2 className="font-bold">{t('ax.retentionTitle')}</h2>
+        <ul className="text-sm mt-2 space-y-1">
+          <li>{t('ax.ret.codes', { d: RETENTION.otpCodesDays })}</li>
+          <li>{t('ax.ret.visits', { d: RETENTION.pledgerVisitsDays })}</li>
+          <li>{t('ax.ret.messages', { d: RETENTION.messageBodiesDays })}</li>
+          <li>{t('ax.ret.webhooks', { d: RETENTION.webhookPayloadsDays })}</li>
+          <li>{t('ax.ret.money')}</li>
+        </ul>
+        <h3 className="font-semibold text-sm mt-4">{t('ax.consentVersions')}</h3>
+        <ul className="text-sm">{versions.map((v) => <li key={v.v} className="flex justify-between max-w-sm"><span>{v.v}</span><b>{v.n}</b></li>)}</ul>
+      </section>
+      {perms['privacy.erase'] && <EraseForm />}
+      <section className="card p-5">
+        <h2 className="font-bold">{t('ax.erasedLog')}</h2>
+        {recent.length === 0 ? <p className="text-muted mt-2">{t('adm.none')}</p> : (
+          <ul className="text-sm mt-2 divide-y divide-line">
+            {recent.map((r, i) => <li key={i} className="py-1.5 flex justify-between"><span>{new Date(r.created_at).toISOString().slice(0, 16).replace('T', ' ')}</span><span className="text-muted">{r.details?.via === 'admin' ? formatPhone(r.who) : t('ax.bySelf')}</span></li>)}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+}
+
+async function SystemTab({ perms }: { perms: Perms }) {
+  const db = await getDb();
+  const { t } = getT();
+  const h = await health(db);
+  const runs = await opsRuns(db, 20);
+  const usingEmbedded = !process.env.DATABASE_URL;
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Kpi label={t('ax.health')} value={h.ok ? t('ax.healthy') : t('ax.down')} sub={t('ax.dbMs', { ms: h.dbMs })} tone={h.ok ? 'brand' : 'bad'} />
+        <Kpi label={t('ax.database')} value={usingEmbedded ? t('ax.dbEmbedded') : 'PostgreSQL'} sub={t('ax.schema', { s: h.schema ?? '—' })} tone={usingEmbedded ? 'warn' : undefined} />
+        <Kpi label={t('ax.lastBackup')} value={h.lastBackup ? new Date(h.lastBackup).toISOString().slice(0, 16).replace('T', ' ') : '—'} sub={h.lastBackupOk === false ? t('ax.backupFailed') : t('ax.backupKeep', { n: BACKUP_KEEP })} tone={h.lastBackupOk === false ? 'bad' : undefined} />
+        <Kpi label={t('ax.alerts')} value={process.env.ALERT_WEBHOOK_URL ? t('ax.alertsOn') : t('ax.alertsOff')} sub={t('ax.alertsSub')} tone={process.env.ALERT_WEBHOOK_URL ? undefined : 'warn'} />
+      </div>
+      <section className="card p-5 space-y-2">
+        <h2 className="font-bold">{t('ax.opsTitle')}</h2>
+        <p className="text-sm text-muted">{t('ax.opsHint', { dir: usingEmbedded ? backupDir() : '—' })}</p>
+        <p className="text-sm text-muted">{t('ax.healthHint')}</p>
+        {perms['ops.run'] && (
+          <div className="flex flex-wrap gap-2 pt-1">
+            <OpsButton action="backup-now" label={t('ax.backupNow')} />
+            <OpsButton action="retention-now" label={t('ax.cleanupNow')} />
+          </div>
+        )}
+      </section>
+      <section className="card p-5">
+        <h2 className="font-bold">{t('ax.opsRuns')}</h2>
+        {runs.length === 0 ? <p className="text-muted mt-2">{t('adm.none')}</p> : (
+          <table className="w-full text-xs mt-2">
+            <tbody>{runs.map((r) => (
+              <tr key={r.id} className="border-t border-line align-top">
+                <td className="py-1.5 pr-3 whitespace-nowrap">{new Date(r.created_at).toISOString().slice(0, 16).replace('T', ' ')}</td>
+                <td className="pr-3 font-semibold">{r.kind}</td>
+                <td className={`pr-3 ${r.ok ? 'text-ok' : 'text-bad'}`}>{r.ok ? 'ok' : 'failed'}</td>
+                <td className="break-all">{JSON.stringify(r.details)}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        )}
+      </section>
     </div>
   );
 }

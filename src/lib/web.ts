@@ -10,6 +10,8 @@ import { PayoutError } from './services/payouts';
 import { ZodError } from 'zod';
 import { hasFreshStepUp } from './services/stepUp';
 import { adminCan, type AdminPermission } from './adminPermissions';
+import { checkRate, clientIp } from './rateLimit';
+import { reportError } from './monitor';
 
 export const SESSION_COOKIE = 'ahadi_session';
 
@@ -64,6 +66,12 @@ export const jsonError = (error: string, status = 400, extra?: unknown) => NextR
 /** Wrap a route handler: CSRF check, known business errors -> 4xx with a code the UI translates. */
 export function api<A extends unknown[]>(fn: (req: Request, ...rest: A) => Promise<Response>, opts: { csrf?: boolean } = { csrf: true }) {
   return async (req: Request, ...rest: A) => {
+    const wait = checkRate(clientIp(req), new URL(req.url).pathname, req.method);
+    if (wait > 0) {
+      const r = jsonError('too_many_requests', 429);
+      r.headers.set('retry-after', String(wait));
+      return r;
+    }
     if (opts.csrf !== false && req.method !== 'GET' && !sameOrigin(req)) return jsonError('forbidden', 403);
     try {
       return await fn(req, ...rest);
@@ -73,8 +81,8 @@ export function api<A extends unknown[]>(fn: (req: Request, ...rest: A) => Promi
       if (e instanceof PaymentError || e instanceof AuthError || e instanceof EventError) return jsonError(e.code, e.code === 'forbidden' ? 403 : 400);
       if (e instanceof PayoutError) return jsonError(e.message, 400);
       if (e instanceof ZodError) return jsonError('invalid_input', 400, e.issues.map((i) => i.path.join('.')));
-      console.error(e);
-      return jsonError('generic', 500);
+      const ref = reportError(e, `${req.method} ${new URL(req.url).pathname}`);
+      return jsonError('generic', 500, { ref });
     }
   };
 }

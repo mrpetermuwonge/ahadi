@@ -42,7 +42,7 @@ export function MyPledges() {
           <div className="mt-4">
             {me.verified ? (
               <>
-                <p className="font-semibold mb-3">{me.name ? t('me.welcome', { name: me.name.split(' ')[0] }) : t('me.welcomeNoName')}</p>
+                <p className="font-semibold mb-3">{me.name && /\p{L}/u.test(me.name) && !me.name.startsWith('+') ? t('me.welcome', { name: me.name.split(' ')[0] }) : t('me.welcomeNoName')}</p>
                 <PledgeSummary me={me} limit={10} views />
               </>
             ) : (

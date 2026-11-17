@@ -22,8 +22,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: '/api/pledger/from-account', label: t('nav.myPledges'), d: 'M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.6-7 10-7 10z', plain: true },
     ...(user.is_admin ? [{ href: '/admin', label: t('nav.admin'), d: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z' }] : []),
   ];
+  // "My pledges" opens the pledger portal (it sets a cookie), so it is a small form posted by a button, not a link.
   const item = (n: (typeof nav)[number], cls: string, inner: React.ReactNode) =>
-    n.plain ? <a key={n.href} href={n.href} className={cls}>{inner}</a> : <Link key={n.href} href={n.href} className={cls}>{inner}</Link>;
+    n.plain ? (
+      <form key={n.href} method="post" action={n.href} className="contents">
+        <button type="submit" className={`${cls} w-full`}>{inner}</button>
+      </form>
+    ) : <Link key={n.href} href={n.href} className={cls}>{inner}</Link>;
   return (
     <div className="min-h-screen pb-24 md:pb-6">
       <header className="sticky top-0 z-20 bg-surface/90 backdrop-blur border-b border-line/60">

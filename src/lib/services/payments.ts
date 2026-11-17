@@ -22,7 +22,7 @@ import type { EventType } from '../eventTypes';
  * A payment becomes 'succeeded' ONLY from a verified webhook or a server-side status call,
  * and only if amount and currency match exactly what we asked for.
  */
-export type PaymentStatus = 'created' | 'pending' | 'succeeded' | 'failed' | 'expired' | 'refunded';
+export type PaymentStatus = 'created' | 'pending' | 'succeeded' | 'failed' | 'expired' | 'refunding' | 'refunded';
 
 export class PaymentError extends Error {
   constructor(public code: string, message?: string) {
@@ -375,22 +375,47 @@ export async function processWebhook(db: Db, providerName: string, rawBody: stri
   return { ok: true as const, status: 200, reason: r.changed ? 'applied' : 'no_change' };
 }
 
-/** Admin refund of a succeeded pledge payment: gateway refund + reversing ledger journal. */
+/**
+ * Admin refund of a succeeded payment (Finance or Super admin, after a fresh code).
+ *  1. The payment is claimed first (status 'refunding'), so two clicks can never refund twice.
+ *  2. A pledge payment can only be refunded while the event still holds that money (not yet withdrawn).
+ *  3. The provider refunds the payer; if that fails the payment goes back to 'succeeded' and nothing changes.
+ *  4. A reversing ledger journal undoes the payment: the pledge is owed again, fees and tips are reversed,
+ *     an Event Pass is removed, bought message credits are taken back.
+ */
 export async function refundPayment(db: Db, paymentId: string, adminId: string, reason: string) {
-  const p = await getPayment(db, paymentId);
-  if (!p || p.status !== 'succeeded') throw new PaymentError('not_refundable');
-  const provider = providerByName(p.provider);
-  if (!provider.refund) throw new PaymentError('refund_not_supported');
-  const r = await provider.refund(p.provider_ref, Number(p.charged_amount), p.currency);
-  if (!r.ok) throw new PaymentError('refund_failed');
+  if (reason.trim().length < 10) throw new PaymentError('reason_required');
+  const [claimed] = await db.query(`UPDATE payments SET status='refunding', updated_at=now() WHERE id=$1 AND status='succeeded' RETURNING *`, [paymentId]);
+  if (!claimed) throw new PaymentError('not_refundable');
+  const p = claimed;
+  const back = () => db.query(`UPDATE payments SET status='succeeded', updated_at=now() WHERE id=$1 AND status='refunding'`, [p.id]);
+  try {
+    if (p.purpose === 'pledge' && p.event_id) {
+      const [{ cash }] = await db.query<{ cash: number }>(
+        `SELECT COALESCE(SUM(amount),0)::bigint AS cash FROM ledger_entries WHERE event_id=$1 AND account='organizer_cash'`, [p.event_id]);
+      if (Number(cash) < Number(p.pledge_credit)) throw new PaymentError('refund_exceeds_available');
+    }
+    const provider = providerByName(p.provider);
+    if (!provider.refund) throw new PaymentError('refund_not_supported');
+    const r = await provider.refund(p.provider_ref, Number(p.charged_amount), p.currency);
+    if (!r.ok) throw new PaymentError('refund_failed');
+  } catch (e) {
+    await back();
+    throw e;
+  }
   await db.tx(async (q) => {
-    const [u] = await q.query(`UPDATE payments SET status='refunded', updated_at=now() WHERE id=$1 AND status='succeeded' RETURNING *`, [p.id]);
-    if (!u) return;
+    await q.query(`UPDATE payments SET status='refunded', updated_at=now() WHERE id=$1`, [p.id]);
     const [j] = await q.query(`SELECT id FROM ledger_journals WHERE source_type='payment' AND source_id=$1 AND kind IN ('payment','pass','credits')`, [p.id]);
     if (j) {
       const { reverse } = await import('../ledger');
-      await reverse(q, j.id, adminId, `Refund: ${reason}`);
+      await reverse(q, j.id, adminId, `Refund: ${reason.trim()}`);
     }
-    await audit(q, { actor: adminId, action: 'payment.refunded', entityType: 'payment', entityId: p.id, eventId: p.event_id, details: { reason } });
+    if (p.purpose === 'event_pass') await q.query(`DELETE FROM event_passes WHERE payment_id=$1`, [p.id]);
+    if (p.purpose === 'sms_credits') {
+      const [c] = await q.query(`SELECT delta FROM credits WHERE ref=$1 AND reason='purchase'`, [p.id]);
+      if (c) await q.query(`INSERT INTO credits(id, user_id, delta, reason, ref) VALUES ($1,$2,$3,'refund',$4)`, [newId('cr'), p.user_id, -Number(c.delta), p.id]);
+    }
+    await audit(q, { actor: adminId, action: 'payment.refunded', entityType: 'payment', entityId: p.id, eventId: p.event_id,
+      details: { reason: reason.trim(), amount: Number(p.charged_amount), purpose: p.purpose } });
   });
 }

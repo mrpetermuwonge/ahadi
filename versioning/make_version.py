@@ -31,7 +31,7 @@ from pathlib import Path
 PROJECT = Path(__file__).resolve().parent.parent          # .../Ahadi/Ahadi Latest
 ROOT = PROJECT.parent                                      # .../Ahadi
 VERSIONS = ROOT / 'Ahadi Versions'
-EXCLUDE_DIRS = {'node_modules', '.next', '.data', '.git', '__pycache__'}
+EXCLUDE_DIRS = {'.next-e2e', 'node_modules', '.next', '.data', '.git', '__pycache__'}
 EXCLUDE_FILES = {'.env.local', '.env'}
 EXCLUDE_SUFFIXES = {'.tsbuildinfo'}
 

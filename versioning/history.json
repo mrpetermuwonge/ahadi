@@ -276,5 +276,25 @@
       "Database change: migration 010 (admin roles, step-up time on sessions, setting proposals). Existing admins became super admins.",
       "9 new automated tests (59 in total)."
     ]
+  },
+  {
+    "version": "1.22",
+    "date": "17 Nov 2026",
+    "title": "Production readiness: security, privacy, backups, alerts, refunds and browser tests",
+    "code_saved": true,
+    "changes": [
+      "Security headers on every page: Content Security Policy (only Ahadi's own scripts, images and connections; never inside another site's frame), Cross-Origin-Opener-Policy, and HSTS in production.",
+      "Speed limits per IP address on every action (stricter for login and code requests), answering \"Too many attempts, wait a minute\" instead of letting floods through.",
+      "The two portal switches (\"My pledges\" from the organizer menu and \"Open my events dashboard\") are now button presses (POST) checked to come from Ahadi's own pages; old links just open the right page without changing anything.",
+      "Data protection: each pledge and each new account records the version of the privacy notice that was accepted. A daily clean-up removes old one-time codes, portal visits and expired sessions, blanks message wording after 365 days and provider notifications after 180 days. Money records, receipts and the audit log are kept.",
+      "Right to erasure: erasing a pledger now also removes their phone number from the message log, codes and portal visits. Trust & safety and Super admins can erase a person's data on request (Admin → Privacy, with a fresh code).",
+      "Backups: the embedded database is backed up every night at 02:00 while the app runs (newest 14 kept in .data/backups); super admins can back up on demand. New restore script: npm run db:restore -- <file> (tested).",
+      "Health check for uptime monitors: /api/health (database, schema version, last backup). Error alerts: every unexpected error is logged as JSON and, with ALERT_WEBHOOK_URL set, sent to Slack/Teams/Discord/Google Chat (at most once per 10 minutes per error). Failing background jobs also alert.",
+      "Refunds: new Admin → Payments tab to search payments by receipt, phone, ID or event. Finance and Super admins can refund with a reason and a fresh code. A refund can never happen twice, is refused if the event already withdrew the money, and is undone in the ledger (pledge owed again, fees/tips reversed, Event Pass removed, credits taken back).",
+      "New admin tabs: Payments, Privacy (consent versions, retention rules, erasures) and System (health, database, backups, alerts, recent runs). New admin permissions: payments.view/refund, privacy.erase, ops.view/run.",
+      "Fixed: a brand-new number verifying on the pledge form was greeted \"Welcome back, 0772…\" (its own number as a name). Now only real returning pledgers are welcomed back, and only by a real name. Found by the new browser tests.",
+      "Browser tests for every role (npm run test:e2e): pledging and paying, My pledges, organizer, treasurer, helper, super admin, support admin, signed-out visitors and the security headers, in a real Edge browser against a separate copy of the app with its own demo database (10 checks, all pass).",
+      "Database change: migration 011 (consent and terms versions, ops runs). 6 new unit tests (65 in total). TODO.md has new sections for operations and data protection."
+    ]
   }
 ]

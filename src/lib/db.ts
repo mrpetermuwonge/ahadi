@@ -13,6 +13,8 @@ export interface Db {
   query<T extends Row = any>(sql: string, params?: unknown[]): Promise<T[]>;
   /** Run fn inside a transaction. Throwing rolls back. */
   tx<T>(fn: (q: Db) => Promise<T>): Promise<T>;
+  /** Embedded database only: a compressed copy of the whole database, taken while the app keeps running. */
+  backup?(): Promise<Uint8Array>;
 }
 
 type Engine = { db: Db; ready: Promise<void> };
@@ -72,6 +74,11 @@ export async function makePglite(dataDir?: string): Promise<Db> {
       await chain.catch(() => undefined);
       return (await pgl.query(sql, params)).rows as any[];
     },
+    backup: async () => {
+      await chain.catch(() => undefined);
+      const file = await pgl.dumpDataDir('gzip');
+      return new Uint8Array(await file.arrayBuffer());
+    },
     tx: (fn) => {
       const run = chain.catch(() => undefined).then(() => pgl.transaction((t) => fn(inner(t))));
       chain = run;
@@ -119,7 +126,9 @@ async function execMulti(q: Db, sql: string) {
 
 async function init(): Promise<Engine> {
   const url = process.env.DATABASE_URL;
-  const db = url ? await makePg(url) : await makePglite(path.join(process.cwd(), '.data', 'pglite'));
+  // PGLITE_DIR lets a second copy (e.g. the browser tests) use its own embedded database folder.
+  const dir = process.env.PGLITE_DIR ? path.resolve(process.env.PGLITE_DIR) : path.join(process.cwd(), '.data', 'pglite');
+  const db = url ? await makePg(url) : await makePglite(dir);
   const ready = migrate(db);
   return { db, ready };
 }

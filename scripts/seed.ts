@@ -15,8 +15,8 @@ import { addDays, localDate } from '../src/lib/time';
 async function user(db: Awaited<ReturnType<typeof getDb>>, phone: string, name: string, admin = false) {
   const p = normalizePhone(phone)!;
   const [u] = await db.query(
-    `INSERT INTO users(id, phone, name, is_admin) VALUES ($1,$2,$3,$4) ON CONFLICT (phone) DO UPDATE SET name=EXCLUDED.name RETURNING *`,
-    [newId('usr'), p, name, admin],
+    `INSERT INTO users(id, phone, name, is_admin, admin_role) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (phone) DO UPDATE SET name=EXCLUDED.name RETURNING *`,
+    [newId('usr'), p, name, admin, admin ? 'super' : null],
   );
   await db.query(
     `INSERT INTO payout_accounts(id, user_id, kind, label, phone, verified) SELECT $1,$2,'mobile_money','My mobile money',$3,true

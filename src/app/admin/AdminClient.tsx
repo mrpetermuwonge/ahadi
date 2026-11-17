@@ -16,7 +16,7 @@ export function AdminButton({ action, body, label, primary }: { action: string; 
       <button className={`${primary ? 'btn-primary' : 'btn-outline'} min-h-[36px] px-3 text-xs`} disabled={busy}
         onClick={async () => {
           let note = '';
-          if (action === 'payout-review' || action === 'verification') {
+          if (action === 'payout-review' || action === 'verification' || action === 'refund') {
             const n = window.prompt(t('ledger.reason'));
             if (n === null) return;
             note = n;
@@ -175,5 +175,57 @@ export function ReassignOwner({ eventId }: { eventId: string }) {
         <button type="button" className="btn-ghost min-h-[36px] px-3 text-xs" onClick={() => setOpen(false)}>{t('a.cancel')}</button>
       </div>
     </div>
+  );
+}
+
+/** Erase a pledger's personal data after a request to Ahadi (Trust & safety or Super admin). */
+export function EraseForm() {
+  const { t } = useT();
+  const router = useRouter();
+  const [phone, setPhone] = useState('');
+  const [msg, setMsg] = useState<{ kind: 'ok' | 'bad'; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  return (
+    <form className="card p-5 space-y-3" onSubmit={async (e) => {
+      e.preventDefault();
+      if (!window.confirm(t('ax.eraseConfirm', { phone }))) return;
+      setBusy(true);
+      setMsg(null);
+      const r = await apiSend('/api/admin/erase-pledger', { phone });
+      setBusy(false);
+      if (!r.ok) return r.error === 'step_up_cancelled' ? undefined : setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
+      setMsg({ kind: 'ok', text: t('ax.erased') });
+      setPhone('');
+      router.refresh();
+    }}>
+      <h2 className="font-bold">{t('ax.eraseTitle')}</h2>
+      <p className="text-sm text-muted">{t('ax.eraseHint')}</p>
+      <div>
+        <label className="label" htmlFor="erase-phone">{t('acct.phone')}</label>
+        <input id="erase-phone" className="input" inputMode="tel" placeholder="0772 123 456" value={phone} onChange={(e) => setPhone(e.target.value)} />
+      </div>
+      {msg && <Alert kind={msg.kind}>{msg.text}</Alert>}
+      <button className="btn-outline text-bad" disabled={busy || phone.length < 9}>{busy ? t('a.loading') : t('ax.eraseButton')}</button>
+    </form>
+  );
+}
+
+/** Run a backup or the data clean-up now (Super admin). */
+export function OpsButton({ action, label }: { action: 'backup-now' | 'retention-now'; label: string }) {
+  const { t } = useT();
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [res, setRes] = useState<string | null>(null);
+  return (
+    <span className="inline-flex flex-col gap-1">
+      <button type="button" className="btn-outline min-h-[40px] px-3 text-sm" disabled={busy} onClick={async () => {
+        setBusy(true);
+        const r = await apiSend(`/api/admin/${action}`, {});
+        setBusy(false);
+        setRes(r.ok ? JSON.stringify(r.data) : t(`err.${r.error}` as any));
+        router.refresh();
+      }}>{busy ? t('a.loading') : label}</button>
+      {res && <span className="text-xs text-muted break-all max-w-md">{res}</span>}
+    </span>
   );
 }

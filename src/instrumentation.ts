@@ -19,7 +19,7 @@ export async function register() {
     return;
   }
   const base = `http://127.0.0.1:${process.env.PORT ?? 3000}`;
-  const run = async (job: 'reminders' | 'pending' | 'reconcile') => {
+  const run = async (job: 'reminders' | 'pending' | 'reconcile' | 'retention' | 'backup') => {
     try {
       const res = await fetch(`${base}/api/cron/${job}`, { method: 'POST', headers: { 'x-cron-secret': secret } });
       if (!res.ok) console.warn(`[cron] ${job} answered ${res.status}`);
@@ -43,8 +43,10 @@ export async function register() {
       if (hour === 2 && day !== lastDay) {
         lastDay = day;
         void run('reconcile');
+        void run('retention');
+        void run('backup');
       }
     }, 10 * MIN);
-    console.log('[cron] built-in scheduler on: reminders every 15 min, payments every 2 min, reconcile daily 02:00');
+    console.log('[cron] built-in scheduler on: reminders every 15 min, payments every 2 min; reconcile, clean-up and backup daily 02:00');
   }, 20_000);
 }

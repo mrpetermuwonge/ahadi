@@ -250,7 +250,8 @@ export function PledgeFlow({ event, quickAmounts, fee, tips }: Props) {
               <div className="rounded-xl bg-brand-soft/60 p-3 space-y-3">
                 <Alert kind="ok">{t('gate.verified')}</Alert>
                 <div className="flex items-center justify-between gap-2">
-                  <p className="font-bold">{t('me.welcome', { name: (matched.name ?? '').split(' ')[0] || local(matched.phone) })}</p>
+                  {/* "Welcome back" only for someone who really pledged before, and only with a real name (never a phone number). */}
+                  <p className="font-bold">{matched.items.length === 0 ? '' : realFirstName(matched.name) ? t('me.welcome', { name: realFirstName(matched.name)! }) : t('me.welcomeNoName')}</p>
                   <button type="button" className="text-sm text-brand font-semibold min-h-[36px]"
                     onClick={async () => { await forget(); set({ phone: '' }); }}>
                     {t('me.notYou')}
@@ -339,4 +340,10 @@ export function PledgeFlow({ event, quickAmounts, fee, tips }: Props) {
       </div>
     </div>
   );
+}
+
+/** First name only if it is a real name (has letters, isn't a phone number). */
+function realFirstName(name: string | null | undefined): string | null {
+  const first = (name ?? '').trim().split(/\s+/)[0] ?? '';
+  return /\p{L}/u.test(first) && !first.startsWith('+') ? first : null;
 }

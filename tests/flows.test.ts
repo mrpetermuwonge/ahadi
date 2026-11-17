@@ -793,3 +793,96 @@ describe('step-up, admin roles, handover and analytics (v1.21)', () => {
     expect(a.revenue.fees).toBeGreaterThan(0);
   });
 });
+
+describe('production readiness (v1.22)', () => {
+  it('speed limits stop floods per IP and reset after a minute', async () => {
+    const { checkRate, resetRateLimits } = await import('@/lib/rateLimit');
+    resetRateLimits();
+    const t0 = 1_000_000;
+    let blocked = 0;
+    for (let i = 0; i < 35; i++) if (checkRate('1.2.3.4', '/api/auth/request', 'POST', t0 + i) > 0) blocked++;
+    expect(blocked).toBe(5); // auth: 30 per minute
+    expect(checkRate('5.6.7.8', '/api/auth/request', 'POST', t0)).toBe(0); // other people unaffected
+    expect(checkRate('1.2.3.4', '/api/auth/request', 'POST', t0 + 61_000)).toBe(0);
+  });
+
+  it('a refund returns the money, undoes the ledger and can never happen twice', async () => {
+    const { refundPayment } = await import('@/lib/services/payments');
+    const owner = await mkUser('+256700000701');
+    const admin = await mkUser('+256700000702', true);
+    const e = await mkEvent(owner);
+    const p = await pledge(e.id, '0772111701', 60000);
+    const pay = await payFor(p.access_token, 60000);
+    await webhook(pay.id, 'succeeded');
+    expect((await eventTotals(db, e.id)).collected).toBe(60000);
+    await expect(refundPayment(db, pay.id, admin.id, 'short')).rejects.toMatchObject({ code: 'reason_required' });
+    await Promise.allSettled([
+      refundPayment(db, pay.id, admin.id, 'Paid twice by mistake'),
+      refundPayment(db, pay.id, admin.id, 'Paid twice by mistake'),
+    ]);
+    const [row] = await db.query(`SELECT status FROM payments WHERE id=$1`, [pay.id]);
+    expect(row.status).toBe('refunded');
+    const t = await eventTotals(db, e.id);
+    expect(t.collected).toBe(0);
+    expect(t.outstanding).toBe(60000);
+    expect(await unbalancedJournals(db)).toEqual([]);
+    const reversals = await db.query(`SELECT COUNT(*)::int AS n FROM ledger_journals WHERE kind='reversal' AND event_id=$1`, [e.id]);
+    expect(reversals[0].n).toBe(1);
+  });
+
+  it('money already withdrawn cannot be refunded from Ahadi', async () => {
+    const { refundPayment } = await import('@/lib/services/payments');
+    const owner = await mkUser('+256700000703');
+    const admin = await mkUser('+256700000704', true);
+    const e = await mkEvent(owner);
+    const p = await pledge(e.id, '0772111703', 50000);
+    const pay = await payFor(p.access_token, 50000);
+    await webhook(pay.id, 'succeeded');
+    const [acct] = await db.query(`SELECT id FROM payout_accounts WHERE user_id=$1`, [owner.id]);
+    const t = await eventTotals(db, e.id);
+    await requestPayout(db, { eventId: e.id, userId: owner.id, accountId: acct.id, amount: t.available });
+    await expect(refundPayment(db, pay.id, admin.id, 'Pledger changed their mind')).rejects.toMatchObject({ code: 'refund_exceeds_available' });
+    const [row] = await db.query(`SELECT status FROM payments WHERE id=$1`, [pay.id]);
+    expect(row.status).toBe('succeeded');
+  });
+
+  it('erasure by phone removes the person everywhere but keeps the amounts', async () => {
+    const { erasePledgerByPhone } = await import('@/lib/services/pledges');
+    const owner = await mkUser('+256700000705');
+    const admin = await mkUser('+256700000706', true);
+    const e = await mkEvent(owner);
+    const p = await pledge(e.id, '0772111705', 40000);
+    const [pl] = await db.query(`SELECT consent_version FROM pledgers WHERE phone='+256772111705'`);
+    expect(pl.consent_version).toBeTruthy();
+    await erasePledgerByPhone(db, '0772111705', admin.id);
+    expect(await db.query(`SELECT 1 FROM pledgers WHERE phone='+256772111705'`)).toEqual([]);
+    expect(await db.query(`SELECT 1 FROM messages_log WHERE recipient='+256772111705'`)).toEqual([]);
+    const [pg] = await db.query(`SELECT display_name, amount FROM pledges WHERE id=$1`, [p.id]);
+    expect(pg).toMatchObject({ display_name: 'Deleted', amount: 40000 });
+    expect((await eventTotals(db, e.id)).pledged).toBe(40000);
+  });
+
+  it('daily clean-up removes old codes and visits, blanks old messages, keeps money', async () => {
+    const { runRetention } = await import('@/lib/services/ops');
+    const owner = await mkUser('+256700000707');
+    const e = await mkEvent(owner);
+    await pledge(e.id, '0772111707', 30000);
+    await db.query(`INSERT INTO otp_codes(id, identifier, code_hash, channel, purpose, expires_at, created_at) VALUES ('old1', '+256700000707', 'x', 'whatsapp', 'login', now() - interval '3 days', now() - interval '3 days')`);
+    await db.query(`UPDATE messages_log SET created_at = now() - interval '400 days'`);
+    const r = await runRetention(db);
+    expect(r.otpCodes).toBeGreaterThanOrEqual(1);
+    expect(r.messageBodies).toBeGreaterThanOrEqual(1);
+    const [m] = await db.query(`SELECT body FROM messages_log LIMIT 1`);
+    expect(m.body).toMatch(/^\[removed/);
+    expect((await eventTotals(db, e.id)).pledged).toBe(30000);
+    const [run] = await db.query(`SELECT kind, ok FROM ops_runs ORDER BY created_at DESC LIMIT 1`);
+    expect(run).toEqual({ kind: 'retention', ok: true });
+  });
+
+  it('health check answers and reports the schema', async () => {
+    const { health } = await import('@/lib/services/ops');
+    const h = await health(db);
+    expect(h.ok).toBe(true);
+    expect(h.schema).toBe('011_privacy_ops.sql');
+  });
+});

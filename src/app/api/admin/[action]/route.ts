@@ -6,6 +6,9 @@ import { adminReview } from '@/lib/services/payouts';
 import { runPendingPayments, runReconciliation, runReminders } from '@/lib/services/jobs';
 import { adminReassignOwner } from '@/lib/services/events';
 import { changeSettings, decideProposal, setAdminRole } from '@/lib/services/adminTeam';
+import { refundPayment } from '@/lib/services/payments';
+import { erasePledgerByPhone } from '@/lib/services/pledges';
+import { runBackup, runRetention } from '@/lib/services/ops';
 import type { AdminPermission, AdminRole } from '@/lib/adminPermissions';
 import { api, apiAdmin, jsonError, requireStepUp } from '@/lib/web';
 
@@ -26,8 +29,12 @@ const NEEDS: Record<string, AdminPermission> = {
   'run-jobs': 'jobs.run',
   'team-set': 'team.manage',
   'reassign-owner': 'accounts.recover',
+  refund: 'payments.refund',
+  'erase-pledger': 'privacy.erase',
+  'backup-now': 'ops.run',
+  'retention-now': 'ops.run',
 };
-const STEP_UP = new Set(['payout-review', 'settings', 'setting-decide', 'team-set', 'reassign-owner']);
+const STEP_UP = new Set(['payout-review', 'settings', 'setting-decide', 'team-set', 'reassign-owner', 'refund', 'erase-pledger']);
 
 export const POST = api(async (req, { params }: { params: { action: string } }) => {
   const perm = NEEDS[params.action];
@@ -114,6 +121,26 @@ export const POST = api(async (req, { params }: { params: { action: string } }) 
       const b = z.object({ eventId: z.string(), phone: z.string().max(30), reason: z.string().max(500) }).parse(body);
       await adminReassignOwner(db, b.eventId, user.id, b.phone, b.reason);
       break;
+    }
+    case 'refund': {
+      const b = z.object({ paymentId: z.string().max(40), note: z.string().max(200) }).parse(body);
+      await refundPayment(db, b.paymentId, user.id, b.note);
+      break;
+    }
+    case 'erase-pledger': {
+      const b = z.object({ phone: z.string().max(30) }).parse(body);
+      await erasePledgerByPhone(db, b.phone, user.id);
+      break;
+    }
+    case 'backup-now': {
+      const r = await runBackup(db);
+      await log('admin.backup', 'ops', 'backup', r);
+      return NextResponse.json(r);
+    }
+    case 'retention-now': {
+      const r = await runRetention(db);
+      await log('admin.retention', 'ops', 'retention', r);
+      return NextResponse.json(r);
     }
     default:
       return jsonError('not_found', 404);

@@ -1,4 +1,5 @@
 import type { Db } from '../db';
+import { PRIVACY_VERSION } from '../privacy';
 import { APP_URL } from '../config';
 import { audit } from '../audit';
 import type { EventType } from '../eventTypes';
@@ -70,10 +71,10 @@ export async function createPledge(db: Db, input: PledgeInput) {
     let pledgerId: string;
     if (existingPledger) {
       pledgerId = existingPledger.id;
-      await q.query('UPDATE pledgers SET name=$2, locale=$3, deleted_at=NULL WHERE id=$1', [pledgerId, name, locale]);
+      await q.query('UPDATE pledgers SET name=$2, locale=$3, deleted_at=NULL, consent_at=now(), consent_version=$4 WHERE id=$1', [pledgerId, name, locale, PRIVACY_VERSION]);
     } else {
       pledgerId = newId('plr');
-      await q.query('INSERT INTO pledgers(id, phone, name, locale, consent_at) VALUES ($1,$2,$3,$4, now())', [pledgerId, phone, name, locale]);
+      await q.query('INSERT INTO pledgers(id, phone, name, locale, consent_at, consent_version) VALUES ($1,$2,$3,$4, now(), $5)', [pledgerId, phone, name, locale, PRIVACY_VERSION]);
     }
 
     const [dup] = await q.query('SELECT * FROM pledges WHERE event_id=$1 AND pledger_id=$2', [input.eventId, pledgerId]);
@@ -250,14 +251,38 @@ export async function exportPledgerData(db: Db, token: string) {
 export async function deletePledgerData(db: Db, token: string) {
   const [p] = await db.query('SELECT pledger_id FROM pledges WHERE access_token=$1', [token]);
   if (!p) throw new PledgeError('not_found');
+  await erasePledger(db, p.pledger_id, null, 'self');
+}
+
+/**
+ * Right to erasure: remove a pledger's name, phone number and messages everywhere. Amounts stay in the ledger
+ * (accounting duty) but can no longer be linked to the person. Also used by Ahadi staff for requests by phone.
+ */
+async function erasePledger(db: Db, pledgerId: string, actor: string | null, via: 'self' | 'admin') {
   await db.tx(async (q) => {
-    const anonPhone = `deleted:${p.pledger_id}`;
-    await q.query(`UPDATE pledgers SET name='Deleted', phone=$2, opted_out=true, deleted_at=now() WHERE id=$1`, [p.pledger_id, anonPhone]);
-    await q.query(`UPDATE pledges SET display_name='Deleted', message=NULL, anonymous=true WHERE pledger_id=$1`, [p.pledger_id]);
-    await q.query(`UPDATE payments SET payer_phone=NULL WHERE pledge_id IN (SELECT id FROM pledges WHERE pledger_id=$1)`, [p.pledger_id]);
-    await q.query(`UPDATE reminders SET status='skipped', skip_reason='deleted' WHERE status='scheduled' AND pledge_id IN (SELECT id FROM pledges WHERE pledger_id=$1)`, [p.pledger_id]);
-    await audit(q, { actor: null, action: 'pledger.deleted', entityType: 'pledger', entityId: p.pledger_id });
+    const [pl] = await q.query('SELECT phone FROM pledgers WHERE id=$1', [pledgerId]);
+    const phone: string | undefined = pl?.phone;
+    const anonPhone = `deleted:${pledgerId}`;
+    await q.query(`UPDATE pledgers SET name='Deleted', phone=$2, opted_out=true, deleted_at=now() WHERE id=$1`, [pledgerId, anonPhone]);
+    await q.query(`UPDATE pledges SET display_name='Deleted', message=NULL, anonymous=true WHERE pledger_id=$1`, [pledgerId]);
+    await q.query(`UPDATE payments SET payer_phone=NULL WHERE pledge_id IN (SELECT id FROM pledges WHERE pledger_id=$1)`, [pledgerId]);
+    await q.query(`UPDATE reminders SET status='skipped', skip_reason='deleted' WHERE status='scheduled' AND pledge_id IN (SELECT id FROM pledges WHERE pledger_id=$1)`, [pledgerId]);
+    if (phone && phone.startsWith('+')) {
+      await q.query(`UPDATE messages_log SET recipient=$2, body='[deleted on request]' WHERE recipient=$1`, [phone, anonPhone]);
+      await q.query(`DELETE FROM otp_codes WHERE identifier=$1`, [phone]);
+      await q.query(`DELETE FROM pledger_devices WHERE phone=$1`, [phone]);
+    }
+    await audit(q, { actor, action: 'pledger.deleted', entityType: 'pledger', entityId: pledgerId, details: { via } });
   });
+}
+
+/** Staff: erase a pledger's personal data after a request by phone or email to Ahadi. */
+export async function erasePledgerByPhone(db: Db, rawPhone: string, actor: string) {
+  const phone = normalizePhone(rawPhone);
+  if (!phone) throw new PledgeError('invalid_phone');
+  const [p] = await db.query('SELECT id FROM pledgers WHERE phone=$1', [phone]);
+  if (!p) throw new PledgeError('not_found');
+  await erasePledger(db, p.id, actor, 'admin');
 }
 
 export async function getPledgeView(db: Db, token: string) {

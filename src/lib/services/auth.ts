@@ -8,6 +8,7 @@ import { sendSms, fillTemplate } from '../sms';
 import { codeEmailHtml, emailProviderName, sendEmail, sendWhatsAppCode, whatsappProviderName } from '../channels';
 import { audit } from '../audit';
 import { getSettings } from '../settings';
+import { PRIVACY_VERSION } from '../privacy';
 
 /**
  * Passwordless login. Three ways in:
@@ -189,8 +190,8 @@ export async function signInUser(db: Db, kind: IdKind, identifier: string): Prom
   let [user] = await db.query(`SELECT * FROM users WHERE ${col}=$1`, [identifier]);
   if (!user) {
     [user] = await db.query(
-      `INSERT INTO users(id, ${col}, is_admin, email_verified_at) VALUES ($1,$2,$3,$4) RETURNING *`,
-      [newId('usr'), identifier, false, a.kind === 'email' ? new Date().toISOString() : null],
+      `INSERT INTO users(id, ${col}, is_admin, email_verified_at, terms_version, terms_accepted_at) VALUES ($1,$2,$3,$4,$5, now()) RETURNING *`,
+      [newId('usr'), identifier, false, a.kind === 'email' ? new Date().toISOString() : null, PRIVACY_VERSION],
     );
     await audit(db, { actor: user.id, action: 'user.signup', entityType: 'user', entityId: user.id, details: { via: a.kind } });
   } else if (a.kind === 'email' && !user.email_verified_at) {

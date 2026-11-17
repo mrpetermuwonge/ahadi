@@ -330,12 +330,14 @@ function PledgeSlides({ items }: { items: SummaryItem[] }) {
 export function OrganizerLink() {
   const { t } = useT();
   return (
-    <a href="/api/auth/from-pledger" className="flex items-center justify-between gap-3 rounded-xl border-2 border-accent/60 bg-accent-soft px-4 py-3 tap">
+    <form method="post" action="/api/auth/from-pledger">
+    <button type="submit" className="w-full text-left flex items-center justify-between gap-3 rounded-xl border-2 border-accent/60 bg-accent-soft px-4 py-3 tap">
       <span>
         <span className="block font-bold text-sm">{t('me.organizerTitle')}</span>
         <span className="block text-sm text-brand font-semibold">{t('me.openDashboard')} →</span>
       </span>
       <svg aria-hidden width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-brand shrink-0"><path d="M4 6h16M4 12h16M4 18h10" /></svg>
-    </a>
+    </button>
+    </form>
   );
 }

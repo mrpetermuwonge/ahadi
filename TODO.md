@@ -1,6 +1,6 @@
 # Ahadi – To do before real users
 
-These items were left for later on purpose (15 Nov 2026). The app works for testing without them, but **none of them can be skipped before launch**.
+These items were left for later on purpose (15 Nov 2026; items 6–7 added 17 Nov 2026). The app works for testing without them, but **none of them can be skipped before launch**.
 
 ## 1. Switch off on-screen codes
 - [ ] In `.env.local` (and on the live server) set `OTP_SHOW_ON_SCREEN=false`.
@@ -30,6 +30,20 @@ These items were left for later on purpose (15 Nov 2026). The app works for test
 - [ ] Create a managed PostgreSQL database (e.g. Supabase, Neon, Railway, AWS RDS) and set `DATABASE_URL`.
 - Why: the built-in database (PGlite, folder `.data`) is for one computer only. It has no automatic backups and can't be shared by several servers.
 - The same migrations (`db/migrations`) run on the new database at start-up. Turn on daily backups.
+
+## 6. Operations to switch on (built in v1.22, need your accounts)
+- [ ] **Error alerts:** create an incoming webhook in Slack, Teams, Discord or Google Chat and put its URL in `ALERT_WEBHOOK_URL`.
+- [ ] **Uptime monitor:** sign up for a free monitor (e.g. UptimeRobot or Better Stack) and point it at `{APP_URL}/api/health` every 1–5 minutes.
+- [ ] **Off-site backups:** the app backs itself up every night to `.data/backups` (keeps 14). Copy that folder to Google Drive / OneDrive automatically. Restore with `npm run db:restore -- <file>` (see `scripts/restore-backup.ts`). With a hosted database (item 5), turn on the provider's daily backups instead.
+- [ ] **Several servers?** The speed limits are counted per server. If you run more than one server, move them to a shared store (e.g. Redis).
+- [ ] **Behind a proxy or load balancer:** make sure it sets `X-Forwarded-For`, and that the app is not reachable directly (otherwise people can fake their IP for the speed limits).
+
+## 7. Data protection (Uganda Data Protection and Privacy Act, 2019)
+- [ ] Register Ahadi with the Personal Data Protection Office (PDPO) as a data collector/processor.
+- [ ] Name a data protection officer and a contact address for privacy requests (shown in the privacy policy).
+- [ ] Have a lawyer confirm the retention periods in `src/lib/privacy.ts` (money records 7 years; codes, visits and message wording removed earlier).
+- [ ] When the privacy policy or terms change, update `PRIVACY_VERSION` in `src/lib/privacy.ts` so new agreements are recorded with the new version.
+- [ ] Ask each payment provider and WhatsApp/SMS provider for their data-processing agreement.
 
 ## Also before launch (from STATUS.md)
 - [ ] A native speaker reviews the Luganda and Swahili wording (`src/i18n/lg.ts`, `src/i18n/sw.ts`).
