@@ -1,5 +1,5 @@
 import { getDb } from '@/lib/db';
-import { eventForUser } from '@/lib/services/events';
+import { pageAccess } from '@/lib/pageAccess';
 import { eventTotals } from '@/lib/ledger';
 import { requireUser } from '@/lib/web';
 import { getT } from '@/i18n/server';
@@ -15,7 +15,7 @@ import type { Key } from '@/i18n';
 export default async function PayoutsPage({ params }: { params: { id: string } }) {
   const user = await requireUser();
   const db = await getDb();
-  const { event: e, role } = await eventForUser(db, params.id, user, 'treasurer');
+  const { event: e, perms } = await pageAccess(db, params.id, user, 'payouts.view');
   const { t } = getT();
   const totals = await eventTotals(db, e.id);
   const payouts = await db.query(
@@ -36,9 +36,9 @@ export default async function PayoutsPage({ params }: { params: { id: string } }
         </div>
       </section>
 
-      {role === 'owner' && accounts.length === 0 && <AddPhone />}
+      {perms['payouts.request'] && accounts.length === 0 && <AddPhone />}
 
-      {role === 'owner' && !e.frozen && totals.available > 0 && accounts.length > 0 && (
+      {perms['payouts.request'] && !e.frozen && totals.available > 0 && accounts.length > 0 && (
         <PayoutForm eventId={e.id} currency={e.currency} max={totals.available}
           accounts={accounts.map((a) => ({ id: a.id, label: a.kind === 'bank' ? `${a.bank_name} ${a.account_no}` : `${a.label} · ${formatPhone(a.phone)}` }))} />
       )}
@@ -56,7 +56,7 @@ export default async function PayoutsPage({ params }: { params: { id: string } }
                   <p className="text-sm text-muted">{new Date(p.created_at).toISOString().slice(0, 10)} · {p.bank_name ? `${p.bank_name} ${p.account_no}` : formatPhone(p.phone)}</p>
                   <p className="text-sm font-semibold">{t(`po.status.${p.status}` as Key)}</p>
                 </div>
-                {p.status === 'awaiting_second_approval' && p.requested_by !== user.id && (
+                {p.status === 'awaiting_second_approval' && perms['payouts.secondApprove'] && p.requested_by !== user.id && (
                   <ActionButton eventId={e.id} action="second-approve" body={{ payoutId: p.id }} label={t('po.secondApprove')} className="btn-primary min-h-[40px] px-3 text-sm" />
                 )}
               </li>

@@ -9,6 +9,7 @@ import { formatPhone } from '@/lib/phone';
 import { getSettings, DEFAULT_SETTINGS } from '@/lib/settings';
 import { Logo } from '@/components/Brand';
 import { LangSwitcher } from '@/components/Ui';
+import { LogoutButton } from '@/app/app/LogoutButton';
 import { AdminButton, SettingsEditor, RunJobs } from './AdminClient';
 import { Alert } from '@/components/Ui';
 import { codesOnScreen } from '@/lib/services/auth';
@@ -32,7 +33,7 @@ export default async function AdminPage({ searchParams }: { searchParams: { tab?
       <header className="border-b border-line/60 bg-card">
         <div className="mx-auto max-w-6xl flex items-center justify-between px-4 py-2">
           <div className="flex items-center gap-3"><Logo /><span className="chip bg-accent/20 text-ink">{t('adm.title')}</span></div>
-          <div className="flex items-center gap-2"><LangSwitcher /><Link href="/app" className="btn-ghost min-h-[40px] px-3 text-sm">{t('nav.events')}</Link></div>
+          <div className="flex items-center gap-1"><LangSwitcher /><Link href="/app" className="btn-ghost min-h-[40px] px-3 text-sm">{t('nav.events')}</Link><LogoutButton /></div>
         </div>
         <nav className="mx-auto max-w-6xl px-4 overflow-x-auto">
           <ul className="flex gap-1 min-w-max">

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getDb } from '@/lib/db';
 import { requireUser } from '@/lib/web';
 import { getT } from '@/i18n/server';
 import { Logo } from '@/components/Brand';
@@ -10,6 +11,10 @@ import { AppBack } from './AppBack';
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser('/app');
   const { t } = getT();
+  // Badge tag: "Organizer" if this account runs at least one event, else "Committee" (treasurer/helper); admins see "Admin".
+  const [{ owns }] = await (await getDb()).query<{ owns: boolean }>(
+    `SELECT EXISTS (SELECT 1 FROM event_members WHERE user_id=$1 AND role='owner') AS owns`, [user.id]);
+  const badgeTag = user.is_admin ? t('badge.admin') : owns ? t('badge.organizer') : t('badge.committee');
   // "My pledges" opens the pledger portal for this account's number (a plain link: it starts a short portal visit).
   const nav: { href: string; label: string; d: string; plain?: boolean }[] = [
     { href: '/app', label: t('nav.events'), d: 'M4 6h16M4 12h16M4 18h10' },
@@ -37,7 +42,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <AppBack />
         {/* Tap the badge to open My account (set your name there). */}
         <Link href="/app/account" className="ml-auto tap rounded-xl -mr-1 px-1 py-0.5 hover:bg-brand-soft" aria-label={t('acct.title')}>
-          <PledgerBadge name={user.name ?? user.phone ?? user.email ?? ''} phone={user.phone ?? user.email ?? ''} label={t('badge.organizer')} tag={t('badge.organizer')} />
+          <PledgerBadge name={user.name ?? user.phone ?? user.email ?? ''} phone={user.phone ?? user.email ?? ''} label={badgeTag} tag={badgeTag} />
         </Link>
       </div>
       <main className="mx-auto max-w-3xl px-4 py-4">{children}</main>

@@ -1,5 +1,6 @@
 import { getDb } from '@/lib/db';
-import { eventForUser, homeStatus } from '@/lib/services/events';
+import { homeStatus } from '@/lib/services/events';
+import { pageAccess } from '@/lib/pageAccess';
 import { hasEventPass } from '@/lib/services/pledges';
 import { getSettings } from '@/lib/settings';
 import { requireUser } from '@/lib/web';
@@ -11,7 +12,7 @@ import { EventDetailsForm } from './EventDetailsForm';
 export default async function SettingsPage({ params }: { params: { id: string } }) {
   const user = await requireUser();
   const db = await getDb();
-  const { event: e } = await eventForUser(db, params.id, user, 'owner');
+  const { event: e } = await pageAccess(db, params.id, user, 'settings.manage');
   const s = await getSettings(db);
   const [{ bal }] = await db.query<{ bal: number }>(`SELECT COALESCE(SUM(delta),0)::int AS bal FROM credits WHERE user_id=$1`, [user.id]);
   const verifications = await db.query(`SELECT kind, status FROM verifications WHERE event_id=$1 ORDER BY created_at DESC`, [e.id]);

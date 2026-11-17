@@ -3,34 +3,34 @@ import { z } from 'zod';
 import { getDb } from '@/lib/db';
 import { audit } from '@/lib/audit';
 import { newId } from '@/lib/ids';
-import { addMember, EventError, eventForUser, removeMember, updateEventDetails, updateEventSettings } from '@/lib/services/events';
+import { addMember, EventError, eventAccess, removeMember, updateEventDetails, updateEventSettings } from '@/lib/services/events';
 import { decideChangeRequest, organizerChangeAmount, recordManualPayment, reverseManualEntry } from '@/lib/services/pledges';
 import { requestPayout, secondApprove } from '@/lib/services/payouts';
 import { startPurchase } from '@/lib/services/payments';
 import { getSettings } from '@/lib/settings';
 import { normalizePhone } from '@/lib/phone';
 import { api, apiUser, jsonError } from '@/lib/web';
-import type { Role } from '@/lib/services/auth';
+import type { Permission } from '@/lib/permissions';
 
 /**
- * All organizer actions on one event. Every action checks the caller's role on the SERVER
- * (eventForUser throws 'forbidden'), so the interface hiding a button is never the only protection.
+ * All committee actions on one event. Every action checks the caller's permission on the SERVER against the
+ * role table in lib/permissions.ts (eventAccess throws 'forbidden'), so hiding a button is never the only protection.
  */
-const NEEDS: Record<string, Role> = {
-  'manual-payment': 'treasurer',
-  reverse: 'treasurer',
-  'adjust-pledge': 'owner',
-  'decide-change': 'owner',
-  'moderate-message': 'owner',
-  'add-member': 'owner',
-  'remove-member': 'owner',
-  settings: 'owner',
-  details: 'owner',
-  'request-payout': 'owner',
-  'second-approve': 'treasurer',
-  'buy-pass': 'owner',
-  'buy-credits': 'owner',
-  verification: 'owner',
+const NEEDS: Record<string, Permission> = {
+  'manual-payment': 'cash.record',
+  reverse: 'cash.reverse',
+  'adjust-pledge': 'pledges.adjust',
+  'decide-change': 'pledges.decideChange',
+  'moderate-message': 'messages.moderate',
+  'add-member': 'committee.manage',
+  'remove-member': 'committee.manage',
+  settings: 'settings.manage',
+  details: 'settings.manage',
+  'request-payout': 'payouts.request',
+  'second-approve': 'payouts.secondApprove',
+  'buy-pass': 'billing.manage',
+  'buy-credits': 'billing.manage',
+  verification: 'verification.manage',
 };
 
 export const POST = api(async (req, { params }: { params: { id: string; action: string } }) => {
@@ -38,7 +38,7 @@ export const POST = api(async (req, { params }: { params: { id: string; action: 
   if (!needed) return jsonError('not_found', 404);
   const user = await apiUser();
   const db = await getDb();
-  const { event } = await eventForUser(db, params.id, user, needed);
+  const { event } = await eventAccess(db, params.id, user, needed);
   const body = await req.json().catch(() => ({}));
   const ensurePledge = async (pledgeId: string) => {
     const r = await db.query('SELECT 1 FROM pledges WHERE id=$1 AND event_id=$2', [pledgeId, event.id]);
@@ -79,7 +79,7 @@ export const POST = api(async (req, { params }: { params: { id: string; action: 
       break;
     }
     case 'add-member': {
-      const b = z.object({ phone: z.string().max(30), role: z.enum(['owner', 'treasurer', 'viewer']) }).parse(body);
+      const b = z.object({ phone: z.string().max(30), role: z.enum(['treasurer', 'viewer']) }).parse(body);
       await addMember(db, event.id, user.id, b.phone, b.role);
       break;
     }

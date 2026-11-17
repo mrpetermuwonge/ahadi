@@ -1,5 +1,6 @@
 import { getDb } from '@/lib/db';
-import { dailyActivity, eventForUser, pledgeRows } from '@/lib/services/events';
+import { dailyActivity, pledgeRows } from '@/lib/services/events';
+import { pageAccess } from '@/lib/pageAccess';
 import { eventTotals } from '@/lib/ledger';
 import { requireUser } from '@/lib/web';
 import { getT } from '@/i18n/server';
@@ -8,11 +9,12 @@ import { maskPhone } from '@/lib/phone';
 import { ProgressRing } from '@/components/Ui';
 import { PledgeList } from './PledgeList';
 import { ActionButton } from './ActionButton';
+import type { Key } from '@/i18n';
 
 export default async function EventDashboard({ params }: { params: { id: string } }) {
   const user = await requireUser();
   const db = await getDb();
-  const { event: e, role } = await eventForUser(db, params.id, user, 'viewer');
+  const { event: e, role, perms } = await pageAccess(db, params.id, user, 'event.view');
   const { t } = getT();
   const totals = await eventTotals(db, e.id);
   const rows = await pledgeRows(db, e.id);
@@ -26,7 +28,7 @@ export default async function EventDashboard({ params }: { params: { id: string 
   const cur = e.currency;
   const maxDay = Math.max(1, ...activity.map((a) => Math.max(Number(a.pledged), Number(a.collected))));
   const pendingMsgs = rows.filter((r) => r.message && r.messageStatus === 'pending');
-  const isOwner = role === 'owner';
+  const contacts = perms['pledges.contacts'];
 
   return (
     <div className="space-y-4">
@@ -45,6 +47,16 @@ export default async function EventDashboard({ params }: { params: { id: string 
         </dl>
       </section>
 
+      {/* What this person can do here, in one line: the organizer, treasurer and helpers each get their own view. */}
+      <section className="card p-4 flex gap-3 items-start">
+        <svg aria-hidden className="w-6 h-6 shrink-0 text-brand mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" /></svg>
+        <div>
+          <p className="font-semibold">{t('role.you', { role: t(`role.${role}` as Key) })}</p>
+          <p className="text-sm text-muted">{t(`role.${role}.d` as Key)}</p>
+        </div>
+      </section>
+
+      {perms['ledger.export'] && (
       <section className="card p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-bold">{t('dash.export')}</h2>
@@ -56,6 +68,7 @@ export default async function EventDashboard({ params }: { params: { id: string 
           </div>
         </div>
       </section>
+      )}
 
       {activity.length > 0 && (
         <section className="card p-5">
@@ -75,7 +88,7 @@ export default async function EventDashboard({ params }: { params: { id: string 
         </section>
       )}
 
-      {isOwner && changes.length > 0 && (
+      {perms['pledges.decideChange'] && changes.length > 0 && (
         <section className="card p-5">
           <h2 className="font-bold">{t('dash.changeRequests')}</h2>
           <ul className="mt-3 space-y-3">
@@ -92,7 +105,7 @@ export default async function EventDashboard({ params }: { params: { id: string 
         </section>
       )}
 
-      {isOwner && pendingMsgs.length > 0 && (
+      {perms['messages.moderate'] && pendingMsgs.length > 0 && (
         <section className="card p-5">
           <h2 className="font-bold">{t('dash.messages')}</h2>
           <ul className="mt-3 space-y-3">
@@ -112,8 +125,8 @@ export default async function EventDashboard({ params }: { params: { id: string 
       <PledgeList
         eventId={e.id}
         currency={cur}
-        canAdjust={isOwner}
-        rows={rows.map((r) => ({ ...r, phone: role === 'viewer' ? '' : r.phone, phoneMasked: role === 'viewer' ? maskPhone(r.phone) : r.phone }))}
+        canAdjust={perms['pledges.adjust']}
+        rows={rows.map((r) => ({ ...r, phone: contacts ? r.phone : '', phoneMasked: contacts ? r.phone : maskPhone(r.phone) }))}
       />
     </div>
   );

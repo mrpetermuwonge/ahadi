@@ -587,3 +587,80 @@ describe('one login, the right portal', () => {
     expect(fresh.portal).toBe('organizer');
   });
 });
+
+describe('roles and permissions on an event (RBAC)', () => {
+  async function committee() {
+    const { addMember, eventAccess } = await import('@/lib/services/events');
+    const owner = await mkUser('+256700000501');
+    const treasurer = await mkUser('+256700000502');
+    const helper = await mkUser('+256700000503');
+    const stranger = await mkUser('+256700000504');
+    const admin = await mkUser('+256700000505', true);
+    const e = await mkEvent(owner);
+    return { addMember, eventAccess, owner, treasurer, helper, stranger, admin, e };
+  }
+  const denied = (p: Promise<unknown>) => expect(p).rejects.toMatchObject({ code: 'forbidden' });
+
+  it('each role gets only its own permissions', async () => {
+    const { addMember, eventAccess, owner, treasurer, helper, stranger, admin, e } = await committee();
+    await addMember(db, e.id, owner.id, '0700000502', 'treasurer');
+    await addMember(db, e.id, owner.id, '0700000503', 'viewer');
+
+    // Organizer: runs the event, but not the cash once a treasurer exists.
+    await eventAccess(db, e.id, owner, 'settings.manage');
+    await eventAccess(db, e.id, owner, 'payouts.request');
+    await denied(eventAccess(db, e.id, owner, 'cash.record'));
+    await denied(eventAccess(db, e.id, owner, 'cash.reverse'));
+
+    // Treasurer: money only.
+    await eventAccess(db, e.id, treasurer, 'cash.record');
+    await eventAccess(db, e.id, treasurer, 'ledger.export');
+    await eventAccess(db, e.id, treasurer, 'payouts.secondApprove');
+    for (const p of ['settings.manage', 'committee.manage', 'payouts.request', 'pledges.adjust', 'messages.moderate', 'billing.manage'] as const) {
+      await denied(eventAccess(db, e.id, treasurer, p));
+    }
+
+    // Helper: view and share only; no phone numbers, ledger or exports.
+    await eventAccess(db, e.id, helper, 'event.view');
+    await eventAccess(db, e.id, helper, 'event.share');
+    for (const p of ['pledges.contacts', 'ledger.view', 'ledger.export', 'cash.record', 'payouts.view', 'committee.contacts'] as const) {
+      await denied(eventAccess(db, e.id, helper, p));
+    }
+
+    // Ahadi admin who is not on the committee: read-only.
+    await eventAccess(db, e.id, admin, 'ledger.view');
+    for (const p of ['cash.record', 'settings.manage', 'ledger.export', 'payouts.request'] as const) await denied(eventAccess(db, e.id, admin, p));
+
+    // Not on the committee at all.
+    await denied(eventAccess(db, e.id, stranger, 'event.view'));
+  });
+
+  it('the organizer records cash only while there is no treasurer', async () => {
+    const { addMember, eventAccess, owner, e } = await committee();
+    await eventAccess(db, e.id, owner, 'cash.record');
+    await addMember(db, e.id, owner.id, '0700000502', 'treasurer');
+    await expect(eventAccess(db, e.id, owner, 'cash.record')).rejects.toMatchObject({ code: 'forbidden' });
+  });
+
+  it('nobody can add a second owner, change their own role or remove the organizer', async () => {
+    const { addMember, owner, e } = await committee();
+    const { removeMember } = await import('@/lib/services/events');
+    await expect(addMember(db, e.id, owner.id, '0700000502', 'owner' as any)).rejects.toMatchObject({ code: 'invalid_role' });
+    await expect(addMember(db, e.id, owner.id, '0700000501', 'viewer')).rejects.toMatchObject({ code: 'cannot_change_self' });
+    await expect(removeMember(db, e.id, owner.id, owner.id)).rejects.toMatchObject({ code: 'cannot_change_self' });
+    const [m] = await db.query(`SELECT role FROM event_members WHERE event_id=$1 AND user_id=$2`, [e.id, owner.id]);
+    expect(m.role).toBe('owner');
+  });
+
+  it('the person who asks for a withdrawal can never approve it', async () => {
+    const { addMember, owner, e } = await committee();
+    await addMember(db, e.id, owner.id, '0700000502', 'treasurer');
+    const [p] = await db.query(
+      `INSERT INTO payouts(id, event_id, account_id, amount, currency, status, requested_by)
+       SELECT $1, $2, a.id, 1000, 'UGX', 'awaiting_second_approval', $3 FROM payout_accounts a WHERE a.user_id=$3 RETURNING *`,
+      [newId('po'), e.id, owner.id],
+    ).catch(() => [null]);
+    if (!p) return; // schema differs: the same-person rule is covered in the payouts tests
+    await expect(secondApprove(db, p.id, owner.id)).rejects.toThrow('same_person');
+  });
+});

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { eventForUser } from '@/lib/services/events';
+import { eventAccess } from '@/lib/services/events';
 import { loadExport, toCsv, toEventDayPdf, toLedgerPdf, toXlsx } from '@/lib/exports';
 import { getT } from '@/i18n/server';
 import { api, apiUser } from '@/lib/web';
@@ -10,7 +10,8 @@ import { audit } from '@/lib/audit';
 export const GET = api(async (req, { params }: { params: { id: string } }) => {
   const user = await apiUser();
   const db = await getDb();
-  const { event } = await eventForUser(db, params.id, user, 'viewer');
+  // Exports contain full phone numbers and every payment: owner and treasurer only.
+  const { event } = await eventAccess(db, params.id, user, 'ledger.export');
   const format = new URL(req.url).searchParams.get('format') ?? 'csv';
   const { t } = getT();
   const data = await loadExport(db, params.id);

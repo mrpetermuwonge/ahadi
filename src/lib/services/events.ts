@@ -9,6 +9,7 @@ import { normalizePhone } from '../phone';
 import { getSettings } from '../settings';
 import { localDate } from '../time';
 import { hasRole, roleFor, type Role } from './auth';
+import { can, permissionsFor, type Permission } from '../permissions';
 
 export class EventError extends Error {
   constructor(public code: string) {
@@ -71,6 +72,20 @@ export async function eventForUser(db: Db, eventId: string, user: { id: string; 
   const [e] = await db.query('SELECT * FROM events WHERE id=$1', [eventId]);
   if (!e) throw new EventError('not_found');
   return { event: e, role: role! };
+}
+
+/**
+ * Open an event for a signed-in user and check ONE permission from the role table (lib/permissions.ts).
+ * Throws 'forbidden' when the role may not do it. Returns the role's full permission set for the interface.
+ */
+export async function eventAccess(db: Db, eventId: string, user: { id: string; is_admin: boolean }, perm: Permission) {
+  const role = await roleFor(db, eventId, user);
+  const [e] = await db.query('SELECT * FROM events WHERE id=$1', [eventId]);
+  if (!e || !role) throw new EventError(e ? 'forbidden' : 'not_found');
+  const [{ n }] = await db.query<{ n: number }>(`SELECT COUNT(*)::int AS n FROM event_members WHERE event_id=$1 AND role='treasurer'`, [eventId]);
+  const ctx = { hasTreasurer: n > 0 };
+  if (!can(role, perm, ctx)) throw new EventError('forbidden');
+  return { event: e, role, ctx, perms: permissionsFor(role, ctx) };
 }
 
 export async function myEvents(db: Db, userId: string) {
@@ -154,11 +169,16 @@ export async function publicEvent(db: Db, slug: string) {
 export async function addMember(db: Db, eventId: string, actor: string, rawPhone: string, role: Role) {
   const phone = normalizePhone(rawPhone);
   if (!phone) throw new EventError('invalid_phone');
-  if (!['owner', 'treasurer', 'viewer'].includes(role)) throw new EventError('invalid_role');
+  // One organizer (owner) per event; the committee gets treasurers and helpers. This keeps it clear who is
+  // accountable, and stops anyone giving away or losing control of the event by accident.
+  if (!['treasurer', 'viewer'].includes(role)) throw new EventError('invalid_role');
   const [e] = await db.query('SELECT * FROM events WHERE id=$1', [eventId]);
   await db.tx(async (q) => {
     let [u] = await q.query('SELECT * FROM users WHERE phone=$1', [phone]);
     if (!u) [u] = await q.query(`INSERT INTO users(id, phone) VALUES ($1,$2) RETURNING *`, [newId('usr'), phone]);
+    if (u.id === actor) throw new EventError('cannot_change_self');
+    const [cur] = await q.query(`SELECT role FROM event_members WHERE event_id=$1 AND user_id=$2`, [eventId, u.id]);
+    if (cur?.role === 'owner') throw new EventError('cannot_change_owner');
     await q.query(
       `INSERT INTO event_members(event_id, user_id, role, added_by) VALUES ($1,$2,$3,$4)
        ON CONFLICT (event_id, user_id) DO UPDATE SET role=EXCLUDED.role`,
@@ -170,6 +190,9 @@ export async function addMember(db: Db, eventId: string, actor: string, rawPhone
 }
 
 export async function removeMember(db: Db, eventId: string, actor: string, userId: string) {
+  if (userId === actor) throw new EventError('cannot_change_self');
+  const [cur] = await db.query(`SELECT role FROM event_members WHERE event_id=$1 AND user_id=$2`, [eventId, userId]);
+  if (cur?.role === 'owner') throw new EventError('cannot_change_owner');
   const owners = await db.query(`SELECT user_id FROM event_members WHERE event_id=$1 AND role='owner'`, [eventId]);
   if (owners.length === 1 && owners[0].user_id === userId) throw new EventError('last_owner');
   await db.query('DELETE FROM event_members WHERE event_id=$1 AND user_id=$2', [eventId, userId]);

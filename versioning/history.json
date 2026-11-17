@@ -235,5 +235,25 @@
       "Database change: migration 009 adds events.show_amounts (applied automatically when the server starts; no data is lost).",
       "Wording in English, Swahili and Luganda."
     ]
+  },
+  {
+    "version": "1.20",
+    "date": "17 Nov 2026",
+    "title": "Roles and permissions (RBAC) on every event, and Log out in Admin",
+    "code_saved": true,
+    "changes": [
+      "One permission table (src/lib/permissions.ts) now decides what each role may do on an event. Every page, tab, button and server action uses it, and the server always checks again.",
+      "Organizer: runs the event (details, settings, committee, pledge changes, messages, withdrawal requests, billing, documents). Records cash only while the event has no treasurer.",
+      "Treasurer: the money only. Records and reverses cash, sees the ledger and exports, gives the second approval on withdrawals. No Settings tab; cannot change the event, the committee or request withdrawals.",
+      "Helper (was \"Viewer\"): sees progress and the pledge list with phone numbers hidden, and shares the event. No ledger, exports, withdrawals or money actions.",
+      "Ahadi admin who is not on the committee: read-only view of the event.",
+      "Fixed (security): helpers could download the full exports (with every phone number) through the export link. Exports are now organizer and treasurer only.",
+      "Fixed (security): an organizer could add a second owner, or re-add their own number with a lower role and lose control of the event. Now there is one organizer per event; committee members are treasurers or helpers; nobody can change their own role or remove the organizer.",
+      "Separation of duties: once a treasurer is added, only the treasurer records or reverses cash, and the person who asks for a withdrawal can never approve it.",
+      "Each event shows \"Your role: …\" under its title and a short explanation of what that role can do. The account badge says Organizer, Committee or Admin.",
+      "Opening a page your role may not use sends you to the event's home page; people outside the committee get \"not found\".",
+      "Admin panel: Log out button on every admin page.",
+      "4 new automated tests for roles (50 tests in total)."
+    ]
   }
 ]

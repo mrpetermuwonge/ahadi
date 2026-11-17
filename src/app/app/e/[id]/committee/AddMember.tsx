@@ -9,7 +9,7 @@ export function AddMember({ eventId }: { eventId: string }) {
   const { t } = useT();
   const router = useRouter();
   const [phone, setPhone] = useState('');
-  const [role, setRole] = useState<'treasurer' | 'viewer' | 'owner'>('treasurer');
+  const [role, setRole] = useState<'treasurer' | 'viewer'>('treasurer');
   const [msg, setMsg] = useState<{ kind: 'ok' | 'bad'; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   return (
@@ -34,7 +34,7 @@ export function AddMember({ eventId }: { eventId: string }) {
       <fieldset>
         <legend className="label">{t('com.role')}</legend>
         <div className="grid gap-2">
-          {(['treasurer', 'viewer', 'owner'] as const).map((r) => (
+          {(['treasurer', 'viewer'] as const).map((r) => (
             <label key={r} className={`flex items-start gap-3 rounded-xl border-2 p-3 cursor-pointer ${role === r ? 'border-brand bg-brand-soft' : 'border-line'}`}>
               <input type="radio" name="role" className="mt-1 w-5 h-5" checked={role === r} onChange={() => setRole(r)} />
               <span><span className="font-semibold block">{t(`role.${r}`)}</span><span className="text-sm text-muted">{t(`role.${r}.d`)}</span></span>

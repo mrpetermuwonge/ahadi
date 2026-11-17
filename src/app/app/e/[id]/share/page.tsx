@@ -1,6 +1,6 @@
 import QRCode from 'qrcode';
 import { getDb } from '@/lib/db';
-import { eventForUser } from '@/lib/services/events';
+import { pageAccess } from '@/lib/pageAccess';
 import { requireUser } from '@/lib/web';
 import { getT } from '@/i18n/server';
 import { APP_URL } from '@/lib/config';
@@ -12,7 +12,7 @@ import { PledgeCard } from './PledgeCard';
 
 export default async function SharePage({ params, searchParams }: { params: { id: string }; searchParams: { new?: string } }) {
   const user = await requireUser();
-  const { event: e } = await eventForUser(await getDb(), params.id, user, 'viewer');
+  const { event: e } = await pageAccess(await getDb(), params.id, user, 'event.share');
   const { t } = getT();
   const link = `${APP_URL()}/e/${e.slug}`;
   const wa = `https://wa.me/?text=${encodeURIComponent(t('share.waText', { title: e.title, link }))}`;

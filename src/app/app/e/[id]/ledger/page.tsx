@@ -1,9 +1,8 @@
 import { getDb } from '@/lib/db';
-import { eventForUser } from '@/lib/services/events';
+import { pageAccess } from '@/lib/pageAccess';
 import { requireUser } from '@/lib/web';
 import { getT } from '@/i18n/server';
 import { formatMoney } from '@/lib/money';
-import { hasRole } from '@/lib/services/auth';
 import { ManualEntry } from './ManualEntry';
 import { ReverseButton } from './ReverseButton';
 import type { Key } from '@/i18n';
@@ -12,7 +11,7 @@ import type { Key } from '@/i18n';
 export default async function LedgerPage({ params }: { params: { id: string } }) {
   const user = await requireUser();
   const db = await getDb();
-  const { event: e, role } = await eventForUser(db, params.id, user, 'viewer');
+  const { event: e, perms } = await pageAccess(db, params.id, user, 'ledger.view');
   const { t } = getT();
   const journals = await db.query(
     `SELECT j.id, j.kind, j.memo, j.receipt_no, j.created_at, j.reverses_id, COALESCE(u.phone, u.email) AS by_phone,
@@ -25,7 +24,8 @@ export default async function LedgerPage({ params }: { params: { id: string } })
     [e.id],
   );
   const pledges = await db.query(`SELECT id, display_name FROM pledges WHERE event_id=$1 ORDER BY display_name`, [e.id]);
-  const canWrite = hasRole(role, 'treasurer');
+  const canWrite = perms['cash.record'];
+  const canReverse = perms['cash.reverse'];
   return (
     <div className="space-y-4">
       {canWrite && <ManualEntry eventId={e.id} currency={e.currency} pledges={pledges.map((p) => ({ id: p.id, name: p.display_name }))} />}
@@ -59,7 +59,7 @@ export default async function LedgerPage({ params }: { params: { id: string } })
                     <td className="py-2 text-right font-semibold whitespace-nowrap">{Number(j.recv) > 0 && j.kind === 'reversal' ? '−' : ''}{formatMoney(amount, e.currency)}</td>
                     <td className="py-2 text-right">
                       {j.reversed ? <span className="chip bg-line text-muted">{t('ledger.reversed')}</span>
-                        : canWrite && j.kind === 'manual_payment' ? <ReverseButton eventId={e.id} journalId={j.id} /> : null}
+                        : canReverse && j.kind === 'manual_payment' ? <ReverseButton eventId={e.id} journalId={j.id} /> : null}
                     </td>
                   </tr>
                 );
