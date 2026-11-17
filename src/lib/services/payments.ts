@@ -385,6 +385,9 @@ export async function processWebhook(db: Db, providerName: string, rawBody: stri
  */
 export async function refundPayment(db: Db, paymentId: string, adminId: string, reason: string) {
   if (reason.trim().length < 10) throw new PaymentError('reason_required');
+  // Conflict of interest: staff never refund payments of an event they are on the committee of.
+  const [own] = await db.query(`SELECT 1 FROM payments p JOIN event_members m ON m.event_id=p.event_id WHERE p.id=$1 AND m.user_id=$2`, [paymentId, adminId]);
+  if (own) throw new PaymentError('conflict_of_interest');
   const [claimed] = await db.query(`UPDATE payments SET status='refunding', updated_at=now() WHERE id=$1 AND status='succeeded' RETURNING *`, [paymentId]);
   if (!claimed) throw new PaymentError('not_refundable');
   const p = claimed;

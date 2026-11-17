@@ -1,0 +1,292 @@
+# Ahadi v1.23 – Changes
+
+*17 Nov 2026 · Demo staff accounts for every admin role, and conflict-of-interest rules*
+
+## Latest changes in this version (v1.23)
+
+- Demo Ahadi staff, one per admin role: 0700 000 001 Ahadi Admin and 0700 000 002 Grace Namuli (Super admins), 0700 000 003 Daniel Okello (Finance), 0700 000 004 Joan Akello (Trust & safety), 0700 000 005 Brian Ssali (Support). Added to the running app and to the demo seed.
+- With two super admins, the two-person rule for money settings (fees, prices, limits) can now be tested: one proposes, the other approves.
+- Each role was checked as that person: tabs, buttons on every tab, and every admin action against the server. Super: 13 tabs, all 16 actions. Finance: refunds, withdrawal reviews, reconciliation, payment jobs, analytics export. Trust & safety: freeze, verify, homepage, reports, documents, erasure (no Revenue tab). Support: read-only, every action refused.
+- New rule (conflict of interest): Ahadi staff cannot review a withdrawal, refund a payment or take over an event where they are themselves on the committee or asked for it. Another staff member must do it.
+- Browser tests now also cover the Finance and Trust & safety admins (12 checks, all pass). 1 new unit test (66 in total).
+
+---
+
+## Earlier versions (for reference)
+
+Each section below happened in an earlier version, shown newest first.
+
+<!-- Changes made in v1.22 (17 Nov 2026) -->
+### v1.22 · 17 Nov 2026 · Production readiness: security, privacy, backups, alerts, refunds and browser tests
+
+> Happened in **v1.22**, not in this version.
+
+- Security headers on every page: Content Security Policy (only Ahadi's own scripts, images and connections; never inside another site's frame), Cross-Origin-Opener-Policy, and HSTS in production.
+- Speed limits per IP address on every action (stricter for login and code requests), answering "Too many attempts, wait a minute" instead of letting floods through.
+- The two portal switches ("My pledges" from the organizer menu and "Open my events dashboard") are now button presses (POST) checked to come from Ahadi's own pages; old links just open the right page without changing anything.
+- Data protection: each pledge and each new account records the version of the privacy notice that was accepted. A daily clean-up removes old one-time codes, portal visits and expired sessions, blanks message wording after 365 days and provider notifications after 180 days. Money records, receipts and the audit log are kept.
+- Right to erasure: erasing a pledger now also removes their phone number from the message log, codes and portal visits. Trust & safety and Super admins can erase a person's data on request (Admin → Privacy, with a fresh code).
+- Backups: the embedded database is backed up every night at 02:00 while the app runs (newest 14 kept in .data/backups); super admins can back up on demand. New restore script: npm run db:restore -- <file> (tested).
+- Health check for uptime monitors: /api/health (database, schema version, last backup). Error alerts: every unexpected error is logged as JSON and, with ALERT_WEBHOOK_URL set, sent to Slack/Teams/Discord/Google Chat (at most once per 10 minutes per error). Failing background jobs also alert.
+- Refunds: new Admin → Payments tab to search payments by receipt, phone, ID or event. Finance and Super admins can refund with a reason and a fresh code. A refund can never happen twice, is refused if the event already withdrew the money, and is undone in the ledger (pledge owed again, fees/tips reversed, Event Pass removed, credits taken back).
+- New admin tabs: Payments, Privacy (consent versions, retention rules, erasures) and System (health, database, backups, alerts, recent runs). New admin permissions: payments.view/refund, privacy.erase, ops.view/run.
+- Fixed: a brand-new number verifying on the pledge form was greeted "Welcome back, 0772…" (its own number as a name). Now only real returning pledgers are welcomed back, and only by a real name. Found by the new browser tests.
+- Browser tests for every role (npm run test:e2e): pledging and paying, My pledges, organizer, treasurer, helper, super admin, support admin, signed-out visitors and the security headers, in a real Edge browser against a separate copy of the app with its own demo database (10 checks, all pass).
+- Database change: migration 011 (consent and terms versions, ops runs). 6 new unit tests (65 in total). TODO.md has new sections for operations and data protection.
+<!-- End of v1.22 -->
+
+<!-- Changes made in v1.21 (17 Nov 2026) -->
+### v1.21 · 17 Nov 2026 · Fresh code for money actions, admin roles, admin analytics, committee alerts, handover and recovery
+
+> Happened in **v1.21**, not in this version.
+
+- "Confirm it's you": withdrawals (request and second approval), adding or removing committee members, handing an event over, adding a payout phone number and sensitive admin actions now need a fresh one-time code, even when logged in. One code covers 10 minutes. The action continues by itself after the code.
+- Admin roles: Super admin (everything), Finance (withdrawal reviews, reconciliation, revenue, analytics export, payment jobs), Trust & safety (reports, freezing, document checks, verified badge, homepage approvals) and Support (read-only). Every tab, button and admin action follows one table (src/lib/adminPermissions.ts), and the server checks again.
+- New Team tab: super admins add staff by phone, change their role or remove them. Nobody changes their own role, there is always at least one super admin, and a role change logs the person out.
+- Two-person rule for money settings (fees, prices, limits, tips): a second super admin must approve the change; the proposer cannot approve it.
+- Admin sessions last 8 hours (organizers stay 30 days). Admin pages show the staff role next to "Admin".
+- New Overview tab (admin analytics) for 7/30/90/365 days: work waiting for the team, money (pledged, collected, collection rate, outstanding, held for organizers, paid out, pending withdrawals, Ahadi revenue), a daily pledged-vs-collected chart, activity (events, pledges, fully paid rate, payment success, organizers, pledgers, trust, staff), event types, payment methods and failure reasons, top events, messages sent and events by organizer type. CSV export for Finance and Super admins. All figures come from the ledger.
+- Events tab: search by name, link or phone; open any event's dashboard read-only; public page link; super admins can change the organizer (account recovery) with a required reason.
+- Payouts tab shows who requested each withdrawal. The audit log highlights admin actions and shows the staff role.
+- WhatsApp alerts to the committee: a withdrawal was requested (to treasurers and other organizers), your role changed or you were removed, you are now the organizer. Three new WhatsApp templates (15 in total, see docs/whatsapp-templates.md).
+- Event handover: the organizer can make a committee member the organizer (Committee tab, "Make organizer"); the old organizer stays as a helper. Not allowed while a withdrawal is in progress.
+- Account recovery: a super admin can make a new phone number the organizer after checking the person's ID; the old organizer is removed and the reason is kept in the audit log.
+- Database change: migration 010 (admin roles, step-up time on sessions, setting proposals). Existing admins became super admins.
+- 9 new automated tests (59 in total).
+<!-- End of v1.21 -->
+
+<!-- Changes made in v1.20 (17 Nov 2026) -->
+### v1.20 · 17 Nov 2026 · Roles and permissions (RBAC) on every event, and Log out in Admin
+
+> Happened in **v1.20**, not in this version.
+
+- One permission table (src/lib/permissions.ts) now decides what each role may do on an event. Every page, tab, button and server action uses it, and the server always checks again.
+- Organizer: runs the event (details, settings, committee, pledge changes, messages, withdrawal requests, billing, documents). Records cash only while the event has no treasurer.
+- Treasurer: the money only. Records and reverses cash, sees the ledger and exports, gives the second approval on withdrawals. No Settings tab; cannot change the event, the committee or request withdrawals.
+- Helper (was "Viewer"): sees progress and the pledge list with phone numbers hidden, and shares the event. No ledger, exports, withdrawals or money actions.
+- Ahadi admin who is not on the committee: read-only view of the event.
+- Fixed (security): helpers could download the full exports (with every phone number) through the export link. Exports are now organizer and treasurer only.
+- Fixed (security): an organizer could add a second owner, or re-add their own number with a lower role and lose control of the event. Now there is one organizer per event; committee members are treasurers or helpers; nobody can change their own role or remove the organizer.
+- Separation of duties: once a treasurer is added, only the treasurer records or reverses cash, and the person who asks for a withdrawal can never approve it.
+- Each event shows "Your role: …" under its title and a short explanation of what that role can do. The account badge says Organizer, Committee or Admin.
+- Opening a page your role may not use sends you to the event's home page; people outside the committee get "not found".
+- Admin panel: Log out button on every admin page.
+- 4 new automated tests for roles (50 tests in total).
+<!-- End of v1.20 -->
+
+<!-- Changes made in v1.19 (16 Nov 2026) -->
+### v1.19 · 16 Nov 2026 · Organizer switch: show or hide amounts on the event page
+
+> Happened in **v1.19**, not in this version.
+
+- New switch in Settings: "Show amounts on the event page" (on by default, so existing events look the same).
+- When it is off, the public event page shows no money at all (no raised, pledged, target or progress ring). It shows how many people have pledged instead.
+- The organizer's own dashboard, ledger and reports still show every amount. Pledgers still see their own pledge and balance.
+- Database change: migration 009 adds events.show_amounts (applied automatically when the server starts; no data is lost).
+- Wording in English, Swahili and Luganda.
+<!-- End of v1.19 -->
+
+<!-- Changes made in v1.18 (15 Nov 2026) -->
+### v1.18 · 15 Nov 2026 · No money amounts on homepage event cards
+
+> Happened in **v1.18**, not in this version.
+
+- Homepage "Happening on Ahadi" cards and the featured hero card no longer show the amount raised, the target or a progress bar. They show the event date and the number of supporters instead.
+- The amounts are removed from the homepage data itself, not just hidden, so they cannot be read from the page source either.
+- The featured hero card is now the celebration with the most supporters (it used to be the one closest to its target).
+- The event page itself still shows progress to the people who open it.
+<!-- End of v1.18 -->
+
+<!-- Changes made in v1.17 (15 Nov 2026) -->
+### v1.17 · 15 Nov 2026 · Health check fixes: deployable build, faster feel, event editing, account name, automatic reminders
+
+> Happened in **v1.17**, not in this version.
+
+- Fixed: the production build failed on the "Open my events dashboard" and "My pledges" switch links (they were pre-rendered at build time). The app can now be built for a real server.
+- Fixed: amounts of zero could show as "UGX -0" on My events.
+- New friendly error screen ("Something went wrong. Nothing was lost.") with Try again, Back and Home, plus a plain last-resort screen if the whole app fails.
+- Loading placeholders (grey blocks) appear at once when moving between pages, so taps never look frozen on slow networks.
+- Smoother navigation: receipt, event and "Back to home" links switch pages without a full reload. Links that start or end a pledger session are unchanged.
+- Organizers can edit an event after creating it: Settings → Event details (cover photo, title, date, place details, target, story). The event link never changes, so shared links, QR codes and pledge cards keep working. Every change is recorded in the audit log with before/after values; verified events show a note that changes may be reviewed.
+- New My account page (tap your badge): set your name, see the phone/email you log in with. My events asks once for a name if none is set, so "Organised by" can appear on pledge cards.
+- Reminders and payment checks now run automatically inside the server (INTERNAL_CRON=true): payments every 2 minutes, reminders every 15 minutes, reconciliation daily at 02:00 Kampala.
+- New TODO.md lists what must be done before real users (on-screen codes off, real web address, cron secret, WhatsApp and payment providers, hosted database).
+<!-- End of v1.17 -->
+
+<!-- Changes made in v1.16 (14 Nov 2026) -->
+### v1.16 · 14 Nov 2026 · Better pledge card: photo framing, invitation and trust details
+
+> Happened in **v1.16**, not in this version.
+
+- Portrait cover photos are framed from the upper part, so faces and heads are no longer cut off on the pledge card.
+- The photo area now grows or shrinks to fit the text, so long event names never run into the QR code.
+- The category chip (e.g. "Birthday & graduation") is replaced by a short invitation matched to the event: "You're invited to pledge" (celebrations), "Join us, make a pledge" (community and other) and "Please stand with us" (hospital and funeral).
+- "Organised by {name}" appears on the card when the organiser has a name on their account, so people can see who is asking.
+- A green "Verified" chip appears on the card for events whose documents Ahadi has checked.
+- New wording in English, Swahili and Luganda.
+<!-- End of v1.16 -->
+
+<!-- Changes made in v1.15 (14 Nov 2026) -->
+### v1.15 · 14 Nov 2026 · QR code only on the pledge card
+
+> Happened in **v1.15**, not in this version.
+
+- Removed the separate "QR code - print it or show it at meetings" box from the Share tab. The QR code now appears only on the pledge card picture, which can be downloaded for printing.
+- The Share tab now shows: Share on WhatsApp, Event link with Copy link, and the Pledge card.
+<!-- End of v1.15 -->
+
+<!-- Changes made in v1.14 (14 Nov 2026) -->
+### v1.14 · 14 Nov 2026 · Shareable pledge card for WhatsApp
+
+> Happened in **v1.14**, not in this version.
+
+- New "Pledge card" on the organizer's Share tab: a ready-made picture with the event cover (or a branded gradient), event type, name, date and place, a QR code, the link and "Pay by MTN, Airtel or card".
+- "Share card on WhatsApp" opens the phone's share sheet with the picture and the invite text, so it can go to chats, groups or status. On computers and older phones it saves the picture instead, to attach in WhatsApp.
+- "Download card" saves the picture (1080 x 1350, sized for WhatsApp and status) for printing or sending later.
+- The card is drawn on the phone itself: nothing new is stored on the server and no new library was added. Hospital and funeral events get quiet grey colours instead of gold.
+- Card wording in English, Swahili and Luganda. The existing WhatsApp link button, Copy link and QR code are unchanged.
+<!-- End of v1.14 -->
+
+<!-- Changes made in v1.13 (14 Nov 2026) -->
+### v1.13 · 14 Nov 2026 · Friendly My pledges for numbers without pledges
+
+> Happened in **v1.13**, not in this version.
+
+- A verified number with no pledges sees "You have no pledges yet" with two next steps: "Find an event to support" (jumps to the homepage events) and "Back to home".
+- The account badge without a name shows the masked number once with a person icon (instead of the number twice and a "•").
+- My pledges button added to the homepage banner next to "Start an event", so it is visible on phones too (the header link only shows on wider screens).
+<!-- End of v1.13 -->
+
+<!-- Changes made in v1.12 (13 Nov 2026) -->
+### v1.12 · 13 Nov 2026 · My pledges as slides or list
+
+> Happened in **v1.12**, not in this version.
+
+- My pledges has a Slides / List switch (remembered on the phone).
+- Slides: one card per pledge with the organizer's cover photo (or the event's colour banner), status, progress, pledged / paid / still to pay and a Pay / Open button. No auto-play.
+- Tapping a pledge opens its page (pay, change pledge, balance, receipts) without a second code during the same visit.
+<!-- End of v1.12 -->
+
+<!-- Changes made in v1.11 (13 Nov 2026) -->
+### v1.11 · 13 Nov 2026 · My pledges button on event pages
+
+> Happened in **v1.11**, not in this version.
+
+- Every event page has a 'My pledges' button next to 'Pledge now' / 'Give support'.
+- Confirmed the 'Support Ahadi' tip is kept: shown on weddings, birthdays and community events, off for hospital and funeral events.
+<!-- End of v1.11 -->
+
+<!-- Changes made in v1.10 (13 Nov 2026) -->
+### v1.10 · 13 Nov 2026 · One login, the right portal
+
+> Happened in **v1.10**, not in this version.
+
+- One login for everyone: numbers that run events go to the organizer dashboard (with a 'My pledges' tab); numbers that only pledge go to the pledger portal; new numbers go to sign-up.
+- 'Open my events dashboard' shown to verified pledgers who also run events.
+- Badges show 'Organizer' or 'Pledger'.
+- Back arrow on every page except the homepage.
+<!-- End of v1.10 -->
+
+<!-- Changes made in v1.9 (13 Nov 2026) -->
+### v1.9 · 13 Nov 2026 · Code sending limits
+
+> Happened in **v1.9**, not in this version.
+
+- No limit while codes are shown on screen (test mode).
+- Live: 30 seconds between codes, 10 per 10 minutes and 40 per day per number, all adjustable in Admin → Settings.
+<!-- End of v1.9 -->
+
+<!-- Changes made in v1.8 (13 Nov 2026) -->
+### v1.8 · 13 Nov 2026 · A new code every time the portal is entered
+
+> Happened in **v1.8**, not in this version.
+
+- The pledge form, My pledges and the personal pledge link all need a new code on entry; leaving to an event page or the homepage locks the portal again.
+- Personal pledge links show 'Verify it is you' first; the code goes to that pledge's own number (shown masked).
+<!-- End of v1.8 -->
+
+<!-- Changes made in v1.7 (13 Nov 2026) -->
+### v1.7 · 13 Nov 2026 · Back arrow and account badge on pledger pages
+
+> Happened in **v1.7**, not in this version.
+
+- '‹ Back' on the pledge, receipt, payment and My pledges pages.
+- Account badge with initials, name and masked number on the pledger's own pages.
+<!-- End of v1.7 -->
+
+<!-- Changes made in v1.6 (13 Nov 2026) -->
+### v1.6 · 13 Nov 2026 · One-time code for every pledge; no reminder opt-out
+
+> Happened in **v1.6**, not in this version.
+
+- No permanent PIN: every pledge needs a fresh one-time code sent to the number (WhatsApp; on screen in test mode). One code allows one pledge.
+- Pledgers can no longer stop reminders (no button, no STOP replies, no opt-out wording).
+- Fixed: going back to an event after a 'pay later' pledge reopened the old pledge.
+<!-- End of v1.6 -->
+
+<!-- Changes made in v1.5 (13 Nov 2026) -->
+### v1.5 · 13 Nov 2026 · Temporary codes and required PIN
+
+> Happened in **v1.5**, not in this version.
+
+- Temporary codes shown on screen while WhatsApp is not connected (OTP_SHOW_ON_SCREEN); admin panel warns while this is on.
+- PIN required for every pledge. (Replaced in v1.6 by a one-time code per pledge.)
+<!-- End of v1.5 -->
+
+<!-- Changes made in v1.4 (13 Nov 2026) -->
+### v1.4 · 13 Nov 2026 · Returning pledgers and My pledges (optional PIN)
+
+> Happened in **v1.4**, not in this version.
+
+- Returning pledgers verify their number and see a summary: pledged so far, paid, still to pay, next due date, each pledge's status.
+- New 'My pledges' page (/my).
+- Optional PIN to protect pledges. (Replaced in v1.5 and removed in v1.6.)
+<!-- End of v1.4 -->
+
+<!-- Changes made in v1.3 (12–13 Nov 2026) -->
+### v1.3 · 12–13 Nov 2026 · Homepage showcase and event categories
+
+> Happened in **v1.3**, not in this version.
+
+- Homepage 'Happening on Ahadi' slideshow with folder tabs: All · Individuals & families · Churches & nonprofits · Companies & schools.
+- Organizers choose 'Who is organising?' and can tick 'Show my event on the Ahadi homepage'; admins approve or decline.
+- 'My events' grouped by folder tabs: All · Celebrations · Support · Community & faith · Closed.
+- The homepage hero card shows a real featured event with live progress.
+- Fixed a development hot-reload error ('reading call') caused by shared components.
+<!-- End of v1.3 -->
+
+<!-- Changes made in v1.2 (12 Nov 2026) -->
+### v1.2 · 12 Nov 2026 · Pledger messages move to WhatsApp
+
+> Happened in **v1.2**, not in this version.
+
+- Pledge confirmations, receipts, reminders, organizer milestones and committee invites are sent on WhatsApp, in the pledger's language (English or Swahili).
+- SMS safety net: if WhatsApp refuses or later fails to deliver, the SMS version is sent once.
+- 12 WhatsApp message templates written for Meta approval (docs/whatsapp-templates.md).
+<!-- End of v1.2 -->
+
+<!-- Changes made in v1.1 (12 Nov 2026) -->
+### v1.1 · 12 Nov 2026 · Login by WhatsApp code, email or Google
+
+> Happened in **v1.1**, not in this version.
+
+- Phone login: the 6-digit code is sent on WhatsApp, with SMS as automatic fallback.
+- Email login: a 6-digit code by email (Resend), or 'Continue with Google'.
+- Email / Google users add and verify a phone number before withdrawing; a committee invite for that number joins their account.
+- Codes are never stored in plain text or written to the message log.
+<!-- End of v1.1 -->
+
+<!-- Changes made in v1.0 (12 Nov 2026) -->
+### v1.0 · 12 Nov 2026 · Phase 1 build
+
+> Happened in **v1.0**, not in this version.
+
+- Built the Ahadi web app (Next.js, TypeScript, PostgreSQL) from the master build prompt: organizer sign-up with SMS code, 4-step event wizard, public event page, 3-screen pledge flow, mobile money / card payments through a built-in test gateway.
+- Double-entry ledger: append-only, reversing entries only, webhook-safe and idempotent payments, daily reconciliation.
+- Organizer dashboard (progress ring, filters, search), treasurer ledger with cash entries, committee roles (owner / treasurer / viewer), withdrawals with holds, second approver for hospital and funeral events, admin review.
+- Exports: CSV, Excel, PDF ledger, one-page event-day report. Receipts as page, PDF and image.
+- Reminders with quiet hours (21:00–07:00 Kampala), milestone notices, fraud flags, admin panel (events, flags, payouts, verifications, revenue, settings, reconciliation, audit log).
+- Revenue settings editable by admin: transaction fee with 'cover the fee', Event Pass, SMS bundles, optional 'Support Ahadi' tip (off for hospital and funeral events).
+- English, Luganda and Kiswahili; installable PWA; works offline without losing typed data.
+- Demo data: wedding, hospital and funeral events. UI brochure (HTML and PDF).
+<!-- End of v1.0 -->

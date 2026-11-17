@@ -54,6 +54,7 @@ export const en = {
   'err.invalid_code': "Enter the 6-digit code from the message.",
   'err.free_limit': 'The free plan allows one active event. Close an event or buy an Event Pass.',
   'err.forbidden': 'You do not have permission to do that.',
+  'err.conflict_of_interest': "You are on this event's committee (or asked for this yourself), so another staff member must do it.",
   'err.not_found': 'We could not find that.',
   'err.insufficient_balance': 'That is more than the available balance.',
   'err.account_not_verified': 'This payout account is not verified yet.',

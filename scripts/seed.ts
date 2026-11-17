@@ -12,11 +12,13 @@ import { startPledgePayment, processWebhook } from '../src/lib/services/payments
 import { signedMockWebhook } from '../src/lib/payments/mock';
 import { addDays, localDate } from '../src/lib/time';
 
-async function user(db: Awaited<ReturnType<typeof getDb>>, phone: string, name: string, admin = false) {
+async function user(db: Awaited<ReturnType<typeof getDb>>, phone: string, name: string, admin: boolean | 'super' | 'finance' | 'trust' | 'support' = false) {
   const p = normalizePhone(phone)!;
+  const role = admin === true ? 'super' : admin || null;
   const [u] = await db.query(
-    `INSERT INTO users(id, phone, name, is_admin, admin_role) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (phone) DO UPDATE SET name=EXCLUDED.name RETURNING *`,
-    [newId('usr'), p, name, admin, admin ? 'super' : null],
+    `INSERT INTO users(id, phone, name, is_admin, admin_role) VALUES ($1,$2,$3,$4,$5)
+     ON CONFLICT (phone) DO UPDATE SET name=EXCLUDED.name, is_admin=EXCLUDED.is_admin, admin_role=EXCLUDED.admin_role RETURNING *`,
+    [newId('usr'), p, name, !!role, role],
   );
   await db.query(
     `INSERT INTO payout_accounts(id, user_id, kind, label, phone, verified) SELECT $1,$2,'mobile_money','My mobile money',$3,true
@@ -43,6 +45,11 @@ async function main() {
   }
   const today = localDate();
   const admin = await user(db, '0700000001', 'Ahadi Admin', true);
+  // Demo Ahadi staff, one per admin role (a second super admin makes the two-person rule for fees testable).
+  await user(db, '0700000002', 'Grace Namuli', 'super');
+  await user(db, '0700000003', 'Daniel Okello', 'finance');
+  await user(db, '0700000004', 'Joan Akello', 'trust');
+  await user(db, '0700000005', 'Brian Ssali', 'support');
   const sarah = await user(db, '0772100200', 'Sarah Nakato');
   const grace = await user(db, '0752300400', 'Grace Atim');
   const joseph = await user(db, '0782500600', 'Joseph Okello');
@@ -126,7 +133,7 @@ async function main() {
   console.log(`  Wedding  /e/${wedding.slug}   (organizer 0772 100 200)`);
   console.log(`  Hospital /e/${hospital.slug}  (organizer 0752 300 400)`);
   console.log(`  Funeral  /e/${funeral.slug}   (organizer 0782 500 600)`);
-  console.log('  Admin login: 0700 000 001 (set ADMIN_PHONES)');
+  console.log('  Ahadi staff: 0700 000 001 & 0700 000 002 super admins, 0700 000 003 finance, 0700 000 004 trust & safety, 0700 000 005 support');
 }
 
 main().then(() => process.exit(0)).catch((e) => {

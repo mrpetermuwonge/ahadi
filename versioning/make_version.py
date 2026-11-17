@@ -236,6 +236,13 @@ def make_version(version=None, demo_md=None, with_code=True):
         shutil.copyfile(demo_src, demo)
     markdown_to_pdf(demo, folder / 'Demo Accounts.pdf', f'Ahadi v{version} – Demo Accounts')
 
+    # The running "Ahadi Latest" folder always carries the newest change notes too (all versions, latest first).
+    # Done before copying the code, so each version's code/ folder includes them as well.
+    if version == history[-1]['version']:
+        shutil.copyfile(changes, PROJECT / 'CHANGES.md')
+        shutil.copyfile(folder / 'CHANGES.pdf', PROJECT / 'CHANGES.pdf')
+        print('  CHANGES.md / CHANGES.pdf also copied to Ahadi Latest')
+
     if with_code and entry.get('code_saved', True):
         copy_code(folder / 'code')
         print('  code copied (run "npm install" inside code/ to use it)')

@@ -56,6 +56,7 @@ export const lg: Dict = {
   'err.invalid_code': "Wandiika koodi ey'ennamba 6 okuva mu bubaka.",
   'err.free_limit': 'Enteekateeka ey\'obwereere ekkiriza omukolo gumu ogukola. Ggalawo omukolo oba gula Event Pass.',
   'err.forbidden': 'Tolina lukusa kukola ekyo.',
+  'err.conflict_of_interest': "Oli ku kakiiko k'omukolo guno (oba ggwe wasaba), n'olwekyo omukozi omulala y'alina okukikola.",
   'err.not_found': 'Ekyo tetukirabye.',
   'err.insufficient_balance': 'Ekyo kisukka ku ssente eziriwo.',
   'err.account_not_verified': 'Akawunti eno tekakasibwanga.',

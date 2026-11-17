@@ -93,6 +93,9 @@ export async function adminReview(db: Db, payoutId: string, adminId: string, app
   const p = await db.tx(async (q) => {
     const [p] = await q.query('SELECT * FROM payouts WHERE id=$1 FOR UPDATE', [payoutId]);
     if (!p || p.status !== 'in_review') throw new PayoutError('not_in_review');
+    // Conflict of interest: Ahadi staff never review a withdrawal from an event they are on the committee of.
+    const [own] = await q.query(`SELECT 1 FROM event_members WHERE event_id=$1 AND user_id=$2`, [p.event_id, adminId]);
+    if (own || p.requested_by === adminId) throw new PayoutError('conflict_of_interest');
     if (approve) {
       const [u] = await q.query(`UPDATE payouts SET status='processing', reviewed_by=$2, updated_at=now() WHERE id=$1 RETURNING *`, [payoutId, adminId]);
       await audit(q, { actor: adminId, action: 'payout.approved', entityType: 'payout', entityId: payoutId, eventId: p.event_id, details: { note } });

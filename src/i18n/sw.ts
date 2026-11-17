@@ -56,6 +56,7 @@ export const sw: Dict = {
   'err.invalid_code': "Andika nambari ya tarakimu 6 kutoka kwenye ujumbe.",
   'err.free_limit': 'Mpango wa bure unaruhusu tukio moja linaloendelea. Funga tukio au nunua Event Pass.',
   'err.forbidden': 'Huna ruhusa ya kufanya hivyo.',
+  'err.conflict_of_interest': "Uko kwenye kamati ya tukio hili (au uliomba mwenyewe), kwa hiyo mfanyakazi mwingine lazima afanye hili.",
   'err.not_found': 'Hatukuweza kupata hicho.',
   'err.insufficient_balance': 'Kiasi hicho ni zaidi ya salio linalopatikana.',
   'err.account_not_verified': 'Akaunti hii ya malipo bado haijathibitishwa.',

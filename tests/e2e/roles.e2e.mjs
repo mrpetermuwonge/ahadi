@@ -7,6 +7,8 @@ import { chromium } from 'playwright-core';
 const ORGANIZER = '0772100200'; // Sarah & John's Wedding (has a treasurer)
 const TREASURER = '0701234567';
 const SUPER = '0700000001';
+const FINANCE = '0700000003'; // seeded demo staff
+const TRUST = '0700000004';
 const PLEDGER = '0751222333';
 const HELPER = '0712555001'; // created during the test
 const SUPPORT = '0712555002'; // created during the test
@@ -163,6 +165,30 @@ export async function runRoleTests(BASE) {
     expect(await page.getByRole('button', { name: 'Freeze' }).count() === 0, 'freeze visible');
     expect((await post(page, '/api/admin/freeze', { eventId: 'x', frozen: true })) === 403, 'freeze not refused');
     expect((await page.request.get('/api/admin/analytics?days=30')).status() === 403, 'export not refused');
+  });
+
+  await test('finance admin: money actions only', async (page) => {
+    await login(page, FINANCE);
+    await page.goto('/admin?tab=payments');
+    expect(await page.getByRole('button', { name: 'Refund' }).count() > 0, 'no refund buttons');
+    await page.goto('/admin?tab=events');
+    expect(await page.getByRole('button', { name: 'Freeze' }).count() === 0, 'finance can freeze');
+    expect((await post(page, '/api/admin/freeze', { eventId: 'x', frozen: true })) === 403, 'freeze not refused');
+    expect((await post(page, '/api/admin/team-set', { phone: '0700000099', role: 'super' })) === 403, 'team not refused');
+    expect((await post(page, '/api/admin/refund', { paymentId: 'x', note: 'x' })) === 401, 'refund without fresh code');
+    expect((await page.request.get('/api/admin/analytics?days=30')).status() === 200, 'export refused');
+  });
+
+  await test('trust & safety admin: safety actions only', async (page) => {
+    await login(page, TRUST);
+    await page.goto('/admin?tab=events');
+    expect(await page.getByRole('button', { name: 'Freeze' }).count() > 0, 'no freeze buttons');
+    await page.goto('/admin?tab=payments');
+    expect(await page.getByRole('button', { name: 'Refund' }).count() === 0, 'trust can refund');
+    expect((await post(page, '/api/admin/refund', { paymentId: 'x', note: 'x' })) === 403, 'refund not refused');
+    expect((await post(page, '/api/admin/payout-review', { payoutId: 'x', approve: true, note: '' })) === 403, 'payout review not refused');
+    const nav = await page.locator('nav a[href^="/admin?tab="]').allInnerTexts();
+    expect(!nav.includes('Revenue'), 'trust sees revenue');
   });
 
   await test('signed-out visitors cannot open admin or event dashboards', async (page) => {

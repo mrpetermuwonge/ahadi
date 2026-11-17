@@ -886,3 +886,24 @@ describe('production readiness (v1.22)', () => {
     expect(h.schema).toBe('011_privacy_ops.sql');
   });
 });
+
+describe('staff conflicts of interest (v1.23)', () => {
+  it('staff cannot review withdrawals or refund payments of an event they are on', async () => {
+    const { addMember, adminReassignOwner } = await import('@/lib/services/events');
+    const { refundPayment } = await import('@/lib/services/payments');
+    const owner = await mkUser('+256700000801');
+    const staff = await mkUser('+256700000802', true);
+    await db.query(`UPDATE users SET admin_role='super' WHERE id=$1`, [staff.id]);
+    const e = await mkEvent(owner);
+    await addMember(db, e.id, owner.id, '0700000802', 'treasurer');
+    const p = await pledge(e.id, '0772111801', 50000);
+    const pay = await payFor(p.access_token, 50000);
+    await webhook(pay.id, 'succeeded');
+    await expect(refundPayment(db, pay.id, staff.id, 'Testing the conflict rule')).rejects.toMatchObject({ code: 'conflict_of_interest' });
+    const [po] = await db.query(
+      `INSERT INTO payouts(id, event_id, account_id, amount, currency, status, requested_by)
+       SELECT $1, $2, a.id, 1000, 'UGX', 'in_review', $3 FROM payout_accounts a WHERE a.user_id=$3 RETURNING *`, [newId('po'), e.id, owner.id]);
+    await expect(adminReview(db, po.id, staff.id, true, 'ok')).rejects.toThrow('conflict_of_interest');
+    await expect(adminReassignOwner(db, e.id, staff.id, '0700000802', 'Taking over the event myself')).rejects.toMatchObject({ code: 'conflict_of_interest' });
+  });
+});

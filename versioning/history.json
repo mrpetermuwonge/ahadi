@@ -296,5 +296,18 @@
       "Browser tests for every role (npm run test:e2e): pledging and paying, My pledges, organizer, treasurer, helper, super admin, support admin, signed-out visitors and the security headers, in a real Edge browser against a separate copy of the app with its own demo database (10 checks, all pass).",
       "Database change: migration 011 (consent and terms versions, ops runs). 6 new unit tests (65 in total). TODO.md has new sections for operations and data protection."
     ]
+  },
+  {
+    "version": "1.23",
+    "date": "17 Nov 2026",
+    "title": "Demo staff accounts for every admin role, and conflict-of-interest rules",
+    "code_saved": true,
+    "changes": [
+      "Demo Ahadi staff, one per admin role: 0700 000 001 Ahadi Admin and 0700 000 002 Grace Namuli (Super admins), 0700 000 003 Daniel Okello (Finance), 0700 000 004 Joan Akello (Trust & safety), 0700 000 005 Brian Ssali (Support). Added to the running app and to the demo seed.",
+      "With two super admins, the two-person rule for money settings (fees, prices, limits) can now be tested: one proposes, the other approves.",
+      "Each role was checked as that person: tabs, buttons on every tab, and every admin action against the server. Super: 13 tabs, all 16 actions. Finance: refunds, withdrawal reviews, reconciliation, payment jobs, analytics export. Trust & safety: freeze, verify, homepage, reports, documents, erasure (no Revenue tab). Support: read-only, every action refused.",
+      "New rule (conflict of interest): Ahadi staff cannot review a withdrawal, refund a payment or take over an event where they are themselves on the committee or asked for it. Another staff member must do it.",
+      "Browser tests now also cover the Finance and Trust & safety admins (12 checks, all pass). 1 new unit test (66 in total)."
+    ]
   }
 ]

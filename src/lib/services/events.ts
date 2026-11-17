@@ -250,8 +250,10 @@ export async function adminReassignOwner(db: Db, eventId: string, adminId: strin
   const newOwnerId = await db.tx(async (q) => {
     const [e] = await q.query('SELECT * FROM events WHERE id=$1 FOR UPDATE', [eventId]);
     if (!e) throw new EventError('not_found');
-    await assertNoOpenPayouts(q, eventId);
     let [u] = await q.query('SELECT * FROM users WHERE phone=$1', [phone]);
+    // Conflict of interest: staff can't hand an event (and its money) to themselves.
+    if (u?.id === adminId) throw new EventError('conflict_of_interest');
+    await assertNoOpenPayouts(q, eventId);
     if (!u) [u] = await q.query(`INSERT INTO users(id, phone) VALUES ($1,$2) RETURNING *`, [newId('usr'), phone]);
     const old = await q.query(`SELECT user_id FROM event_members WHERE event_id=$1 AND role='owner'`, [eventId]);
     await q.query(`DELETE FROM event_members WHERE event_id=$1 AND role='owner' AND user_id <> $2`, [eventId, u.id]);
