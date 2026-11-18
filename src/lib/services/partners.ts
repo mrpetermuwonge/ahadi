@@ -39,10 +39,18 @@ export async function addPartner(db: Db, actor: string, p: { name: string; tagli
   });
 }
 
-export async function updatePartner(db: Db, actor: string, id: string, change: { active?: boolean; move?: 'up' | 'down' }) {
+export async function updatePartner(db: Db, actor: string, id: string, change: { active?: boolean; move?: 'up' | 'down'; logoFileId?: string | null }) {
   await db.tx(async (q) => {
     const [p] = await q.query(`SELECT * FROM partners WHERE id=$1 FOR UPDATE`, [id]);
     if (!p) throw new EventError('not_found');
+    if (change.logoFileId !== undefined) {
+      if (change.logoFileId) {
+        const [f] = await q.query(`SELECT id FROM files WHERE id=$1 AND owner_user_id=$2 AND mime LIKE 'image/%'`, [change.logoFileId, actor]);
+        if (!f) throw new EventError('invalid_input');
+        await q.query(`UPDATE files SET is_public=true WHERE id=$1`, [change.logoFileId]);
+      }
+      await q.query(`UPDATE partners SET logo_file_id=$2 WHERE id=$1`, [id, change.logoFileId]);
+    }
     if (change.active !== undefined) await q.query(`UPDATE partners SET active=$2 WHERE id=$1`, [id, change.active]);
     if (change.move) {
       const [other] = await q.query(

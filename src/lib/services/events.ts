@@ -207,6 +207,24 @@ export async function removeMember(db: Db, eventId: string, actor: string, userI
   if (cur) await alertRoleChanged(db, eventId, userId, 'removed');
 }
 
+/**
+ * Ahadi staff (Super admin, Trust & safety) replace or remove an event's cover photo, e.g. an inappropriate or
+ * misleading picture. The new picture must be the staff member's own upload. Recorded in the audit log.
+ */
+export async function adminSetEventCover(db: Db, eventId: string, adminId: string, fileId: string | null) {
+  await db.tx(async (q) => {
+    const [e] = await q.query('SELECT id, cover_file_id FROM events WHERE id=$1 FOR UPDATE', [eventId]);
+    if (!e) throw new EventError('not_found');
+    if (fileId) {
+      const [f] = await q.query(`SELECT id FROM files WHERE id=$1 AND owner_user_id=$2 AND mime LIKE 'image/%'`, [fileId, adminId]);
+      if (!f) throw new EventError('invalid_input');
+      await q.query('UPDATE files SET is_public=true WHERE id=$1', [fileId]);
+    }
+    await q.query('UPDATE events SET cover_file_id=$2 WHERE id=$1', [eventId, fileId]);
+    await audit(q, { actor: adminId, action: 'admin.event_cover', entityType: 'event', entityId: eventId, eventId, details: { before: e.cover_file_id, after: fileId } });
+  });
+}
+
 /** Withdrawals that are not finished yet. Ownership can't change while one is in progress. */
 async function assertNoOpenPayouts(q: Db, eventId: string) {
   const open = await q.query(

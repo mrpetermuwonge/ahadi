@@ -323,5 +323,21 @@
       "Admin → Partners (Super admin, Trust & safety): add partners with a short line, https website and logo; show/hide, reorder, delete. Demo partners are marked so they can be replaced before launch.",
       "Database change: migration 012 (account suspension, partners). 4 new unit tests (70 in total); browser tests now 15 (export per role, accounts, partners strip)."
     ]
+  },
+  {
+    "version": "1.25",
+    "date": "18 Nov 2026",
+    "title": "Demo logos and event pictures, admin portal reorganised and completed",
+    "code_saved": true,
+    "changes": [
+      "Demo logos for the 8 demo partners (simple illustrated badges, one per partner) and demo pictures on 7 of the 8 events (illustrations matched to the event: rings for the wedding, a candle for the funeral, a heart line for hospital appeals, a church at sunset, a water drop for the boreholes, a graduation cap). Peter's graduation keeps its real photo. Partner logos in the homepage strip are now larger (48 px).",
+      "Admin portal reorganised: a grouped sidebar on computers (Home; People; Events & trust; Money; Data & system) and one scrolling row on phones, with counts of waiting work (reports, documents, withdrawals to review, reconciliation, settings to approve, homepage requests). Each page has a clear title; on phones the staff role badge moves under the title so the top bar fits.",
+      "Settings now use plain-language names in groups (Fees & prices, Free plan, Tips & rewards, Safety limits, Messages & reminders, Homepage), with the technical name shown small underneath.",
+      "New: change or remove an event's cover picture (Super admin, Trust & safety), e.g. an inappropriate photo; each event in Admin → Events shows a small thumbnail. Change or remove a partner's logo.",
+      "New: SMS wording editor (Admin → Settings, super admins): change the text of every reminder, receipt and committee message per event type and language, with checks for allowed placeholders and the link; reset to the built-in text any time.",
+      "New support tools: find a pledger by phone (their pledges, balances and the messages sent to them) in Admin → Accounts, and a recent-messages log with a \"failed only\" filter in Admin → System.",
+      "Checked as every staff role (Super admin, Finance, Trust & safety, Support): every tab, every account page, every event's admin view and all searches load with no errors, no browser errors and nothing wider than the screen.",
+      "Fixed: the Accounts table said \"Your name\" instead of \"Name\"; \"Log out\" no longer wraps on phones. 3 new unit tests (73 in total)."
+    ]
   }
 ]

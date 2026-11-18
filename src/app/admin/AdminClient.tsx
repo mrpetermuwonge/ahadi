@@ -36,6 +36,16 @@ export function AdminButton({ action, body, label, primary }: { action: string; 
   );
 }
 
+/** Settings shown in plain-language groups (the technical name stays visible under each one). */
+const SETTING_GROUPS: { key: string; keys: string[] }[] = [
+  { key: 'money', keys: ['fee_percent', 'fee_min', 'event_pass_price', 'sms_bundle_size', 'sms_bundle_price'] },
+  { key: 'free', keys: ['free_max_active_events', 'free_max_pledges', 'free_sms_per_event'] },
+  { key: 'tips', keys: ['tips_enabled', 'tip_suggestions', 'referral_reward_credits'] },
+  { key: 'safety', keys: ['new_event_review_threshold', 'velocity_max_pledges_per_phone_per_hour', 'velocity_max_payments_per_phone_per_10min', 'otp_min_gap_seconds', 'otp_max_per_10min', 'otp_max_per_day', 'mobile_money_timeout_seconds'] },
+  { key: 'messages', keys: ['whatsapp_messages_enabled', 'quiet_hours_start', 'quiet_hours_end'] },
+  { key: 'home', keys: ['home_requires_approval', 'home_max_events'] },
+];
+
 /**
  * Edit fees, prices, limits and feature flags without a deploy. Money settings (marked) need a second super admin
  * to approve when there is more than one super admin.
@@ -70,11 +80,14 @@ export function SettingsEditor({ values, keys, moneyKeys }: { values: Record<str
     }}>
       <h2 className="font-bold">{t('adm.settings')}</h2>
       <p className="text-sm text-muted">{t('ax.settingsHint')}</p>
-      <div className="grid sm:grid-cols-2 gap-3 mt-4">
-        {keys.map((k) => (
+      {SETTING_GROUPS.map((g) => (
+      <fieldset key={g.key} className="mt-5">
+        <legend className="text-sm font-bold uppercase tracking-wide text-muted">{t(`set.g.${g.key}` as any)}</legend>
+      <div className="grid sm:grid-cols-2 gap-3 mt-2">
+        {g.keys.filter((k) => keys.includes(k)).map((k) => (
           <div key={k}>
-            <label className="label font-mono text-xs flex items-center gap-1" htmlFor={`s-${k}`}>
-              {k}{moneyKeys.includes(k) && <span className="chip bg-accent/25 text-ink text-[10px]">{t('ax.twoPerson')}</span>}
+            <label className="label flex items-center gap-1" htmlFor={`s-${k}`}>
+              {t(`set.k.${k}` as any)}{moneyKeys.includes(k) && <span className="chip bg-accent/25 text-ink text-[10px]">{t('ax.twoPerson')}</span>}
             </label>
             {typeof values[k] === 'boolean' ? (
               <select id={`s-${k}`} className="input" value={v[k]} onChange={(e) => setV({ ...v, [k]: e.target.value })}>
@@ -83,9 +96,12 @@ export function SettingsEditor({ values, keys, moneyKeys }: { values: Record<str
             ) : (
               <input id={`s-${k}`} className="input" value={v[k]} onChange={(e) => setV({ ...v, [k]: e.target.value })} />
             )}
+            <p className="text-[11px] text-muted font-mono mt-0.5">{k}</p>
           </div>
         ))}
       </div>
+      </fieldset>
+      ))}
       {msg && <div className="mt-4"><Alert kind={msg.kind}>{msg.text}</Alert></div>}
       <button className="btn-primary mt-4" disabled={busy}>{busy ? t('a.loading') : t('a.save')}</button>
     </form>
@@ -327,5 +343,86 @@ export function PartnerForm() {
       {msg && <Alert kind={msg.kind}>{msg.text}</Alert>}
       <button className="btn-primary" disabled={busy || name.trim().length < 2}>{busy ? t('a.loading') : t('pt.addButton')}</button>
     </form>
+  );
+}
+
+/** Upload an image and hand it to an admin action (event cover or partner logo), or remove it. */
+export function ImageAction({ action, body, field, label, removeLabel, hasImage, maxSide }: {
+  action: 'event-cover' | 'partner-update'; body: Record<string, unknown>; field: 'fileId' | 'logoFileId';
+  label: string; removeLabel: string; hasImage: boolean; maxSide: number;
+}) {
+  const { t } = useT();
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const send = async (id: string | null) => {
+    const r = await apiSend(`/api/admin/${action}`, { ...body, [field]: id });
+    if (!r.ok) setError(r.error); else router.refresh();
+  };
+  return (
+    <span className="inline-flex flex-col gap-1">
+      <span className="inline-flex gap-1">
+        <label className={`btn-outline min-h-[36px] px-3 text-xs cursor-pointer ${busy ? 'opacity-60' : ''}`}>
+          {busy ? t('a.loading') : label}
+          <input type="file" accept="image/*" className="sr-only" disabled={busy} onChange={async (e) => {
+            const f = e.target.files?.[0];
+            if (!f) return;
+            setBusy(true); setError(null);
+            const up = await uploadFile(await compressImage(f, maxSide, 0.85), 'cover');
+            if (!up.ok) setError(up.error); else await send(up.id);
+            setBusy(false);
+          }} />
+        </label>
+        {hasImage && <button type="button" className="btn-ghost min-h-[36px] px-2 text-xs" disabled={busy} onClick={() => window.confirm(t('ax.removeImageConfirm')) && send(null)}>{removeLabel}</button>}
+      </span>
+      {error && <span role="alert" className="text-xs text-bad">{t(`err.${error}` as any)}</span>}
+    </span>
+  );
+}
+
+/** SMS wording editor: pick the message, event type and language; edit or reset to the built-in text. */
+export function TemplatesEditor({ defaults, overrides, stages }: { defaults: Record<string, string>; overrides: Record<string, string>; stages: string[] }) {
+  const { t } = useT();
+  const router = useRouter();
+  const [stage, setStage] = useState(stages[0]!);
+  const [type, setType] = useState('*');
+  const [locale, setLocale] = useState('en');
+  const key = `${stage}|${type}|${locale}`;
+  const current = overrides[key] ?? '';
+  const [text, setText] = useState(current);
+  const [msg, setMsg] = useState<{ kind: 'ok' | 'bad'; text: string } | null>(null);
+  const pick = (s: string, ty: string, l: string) => { setStage(s); setType(ty); setLocale(l); setText(overrides[`${s}|${ty}|${l}`] ?? ''); setMsg(null); };
+  const save = async (body: string | null) => {
+    const r = await apiSend('/api/admin/template-set', { stage, eventType: type, locale, body });
+    if (!r.ok) return setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
+    setMsg({ kind: 'ok', text: body ? t('tp.saved') : t('tp.reset') });
+    if (!body) setText('');
+    router.refresh();
+  };
+  return (
+    <section className="card p-5 space-y-3">
+      <h2 className="font-bold">{t('tp.title')}</h2>
+      <p className="text-sm text-muted">{t('tp.hint')}</p>
+      <div className="grid sm:grid-cols-3 gap-2">
+        <select className="input" aria-label={t('tp.message')} value={stage} onChange={(e) => pick(e.target.value, type, locale)}>
+          {stages.map((s) => <option key={s} value={s}>{t(`tp.stage.${s}` as any)}</option>)}
+        </select>
+        <select className="input" aria-label={t('ledger.type')} value={type} onChange={(e) => pick(stage, e.target.value, locale)}>
+          <option value="*">{t('xp.allTypes')}</option>
+          {['wedding', 'birthday', 'hospital', 'funeral', 'community', 'other'].map((x) => <option key={x} value={x}>{t(`type.${x}` as any)}</option>)}
+        </select>
+        <select className="input" aria-label={t('lang.label')} value={locale} onChange={(e) => pick(stage, type, e.target.value)}>
+          <option value="en">English</option><option value="lg">Luganda</option><option value="sw">Kiswahili</option>
+        </select>
+      </div>
+      <p className="text-xs text-muted">{t('tp.builtIn')}: <span className="text-ink">{defaults[key]}</span></p>
+      <textarea className="input font-mono text-sm" rows={3} maxLength={480} placeholder={t('tp.placeholder')} value={text} onChange={(e) => setText(e.target.value)} />
+      <p className="text-xs text-muted">{t('tp.vars')}</p>
+      {msg && <Alert kind={msg.kind}>{msg.text}</Alert>}
+      <div className="flex gap-2">
+        <button type="button" className="btn-primary" disabled={!text.trim() || text === current} onClick={() => save(text)}>{t('a.save')}</button>
+        {current && <button type="button" className="btn-outline" onClick={() => save(null)}>{t('tp.useBuiltIn')}</button>}
+      </div>
+    </section>
   );
 }

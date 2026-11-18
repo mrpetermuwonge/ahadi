@@ -10,7 +10,11 @@ import { getSettings, DEFAULT_SETTINGS } from '@/lib/settings';
 import { Logo } from '@/components/Brand';
 import { LangSwitcher } from '@/components/Ui';
 import { LogoutButton } from '@/app/app/LogoutButton';
-import { AdminButton, SettingsEditor, RunJobs, TeamForm, ReassignOwner, EraseForm, OpsButton, AccountActions, PartnerForm } from './AdminClient';
+import { AdminButton, SettingsEditor, RunJobs, TeamForm, ReassignOwner, EraseForm, OpsButton, AccountActions, PartnerForm, ImageAction, TemplatesEditor } from './AdminClient';
+import { listTemplateOverrides } from '@/lib/services/templates';
+import { defaultMessage, EDITABLE_STAGES } from '@/lib/messages';
+import { findPledger, recentMessages } from '@/lib/services/support';
+import type { EventType } from '@/lib/eventTypes';
 import { ExportForm } from './ExportForm';
 import { accountDetail, listAccounts, type AccountKind } from '@/lib/services/accounts';
 import { allPartners } from '@/lib/services/partners';
@@ -43,8 +47,16 @@ const TAB_PERM: Record<Tab, AdminPermission> = {
   accounts: 'accounts.view', export: 'admin.view', partners: 'admin.view',
 };
 const PERIODS = [7, 30, 90, 365];
+/** Menu groups (sidebar on computers, one row on phones). */
+const GROUPS: { key: string; label: Key; tabs: Tab[] }[] = [
+  { key: 'home', label: 'ax.g.home', tabs: ['overview'] },
+  { key: 'people', label: 'ax.g.people', tabs: ['accounts', 'team'] },
+  { key: 'events', label: 'ax.g.events', tabs: ['events', 'flags', 'verifications', 'partners'] },
+  { key: 'money', label: 'ax.g.money', tabs: ['payments', 'payouts', 'revenue', 'recon'] },
+  { key: 'data', label: 'ax.g.data', tabs: ['export', 'privacy', 'audit', 'settings', 'system'] },
+];
 
-export default async function AdminPage({ searchParams }: { searchParams: { tab?: string; days?: string; q?: string; pq?: string; aq?: string; kind?: string; user?: string } }) {
+export default async function AdminPage({ searchParams }: { searchParams: { tab?: string; days?: string; q?: string; pq?: string; aq?: string; kind?: string; user?: string; pph?: string; failed?: string } }) {
   const user = await requireAdmin();
   const { t } = getT();
   const perms = adminPermissionsFor(user);
@@ -53,13 +65,30 @@ export default async function AdminPage({ searchParams }: { searchParams: { tab?
   const allowed = TABS.filter((x) => perms[TAB_PERM[x]] && (x !== 'export' || datasetsFor(role).length > 0));
   const tab: Tab = (allowed as readonly string[]).includes(searchParams.tab ?? '') ? (searchParams.tab as Tab) : 'overview';
   const days = PERIODS.includes(Number(searchParams.days)) ? Number(searchParams.days) : 30;
+  // Work waiting, shown as small counts next to the menu items.
+  const [q] = await (await getDb()).query(
+    `SELECT (SELECT COUNT(*) FROM reports WHERE status='open')::int AS flags,
+            (SELECT COUNT(*) FROM verifications WHERE status='pending')::int AS verifications,
+            (SELECT COUNT(*) FROM payouts WHERE status='in_review')::int AS payouts,
+            (SELECT COUNT(*) FROM reconciliation_issues WHERE NOT resolved)::int AS recon,
+            (SELECT COUNT(*) FROM setting_proposals WHERE status='pending')::int AS settings,
+            (SELECT COUNT(*) FROM events WHERE show_on_home AND home_approved IS NULL)::int AS events`,
+  );
+  const badge = (x: Tab) => Number((q as Record<string, number>)[x] ?? 0);
+  const groups = GROUPS.map((g) => ({ ...g, tabs: g.tabs.filter((x) => (allowed as readonly string[]).includes(x)) })).filter((g) => g.tabs.length);
+  const item = (x: Tab, cls: string, active: string, idle: string) => (
+    <Link key={x} href={`/admin?tab=${x}`} aria-current={tab === x ? 'page' : undefined} className={`${cls} ${tab === x ? active : idle}`}>
+      <span>{t(TAB_KEY[x])}</span>
+      {badge(x) > 0 && <span className="ml-auto chip bg-accent text-white text-[10px] px-1.5" aria-label={t('ax.waiting', { n: badge(x) })}>{badge(x)}</span>}
+    </Link>
+  );
   return (
     <div className="min-h-screen">
-      <header className="border-b border-line/60 bg-card">
-        <div className="mx-auto max-w-6xl flex items-center justify-between gap-2 px-4 py-2">
+      <header className="border-b border-line/60 bg-card sticky top-0 z-20">
+        <div className="mx-auto max-w-7xl flex items-center justify-between gap-2 px-4 py-2">
           <div className="flex items-center gap-2 min-w-0">
             <Logo />
-            <span className="chip bg-accent/20 text-ink whitespace-nowrap">{t('adm.title')} · {t(`ax.role.${role}` as Key)}</span>
+            <span className="hidden sm:inline-flex chip bg-accent/20 text-ink whitespace-nowrap">{t('adm.title')} · {t(`ax.role.${role}` as Key)}</span>
           </div>
           <div className="flex items-center gap-1">
             <LangSwitcher />
@@ -67,21 +96,37 @@ export default async function AdminPage({ searchParams }: { searchParams: { tab?
             <LogoutButton />
           </div>
         </div>
-        <nav className="mx-auto max-w-6xl px-4 overflow-x-auto" aria-label={t('adm.title')}>
+        {/* Phones and tablets: one scrolling row, in the same order as the sidebar groups. */}
+        <nav className="lg:hidden mx-auto max-w-7xl px-4 overflow-x-auto" aria-label={t('adm.title')}>
           <ul className="flex gap-1 min-w-max">
-            {allowed.map((x) => (
-              <li key={x}>
-                <Link href={`/admin?tab=${x}`} aria-current={tab === x ? 'page' : undefined}
-                  className={`inline-flex min-h-[44px] items-center px-3 text-sm font-semibold border-b-2 ${tab === x ? 'border-brand text-brand' : 'border-transparent text-muted'}`}>
-                  {t(TAB_KEY[x])}
-                </Link>
-              </li>
+            {groups.flatMap((g) => g.tabs).map((x) => (
+              <li key={x}>{item(x, 'inline-flex gap-1.5 min-h-[44px] items-center px-3 text-sm font-semibold border-b-2', 'border-brand text-brand', 'border-transparent text-muted')}</li>
             ))}
           </ul>
         </nav>
       </header>
-      <nav className="mx-auto max-w-6xl px-4 pt-2"><BackLink fallback="/app" /></nav>
-      <main className="mx-auto max-w-6xl px-4 py-5">
+      <div className="mx-auto max-w-7xl px-4 lg:grid lg:grid-cols-[220px,1fr] lg:gap-6">
+        {/* Computers: a grouped sidebar so 16 sections stay easy to find. */}
+        <aside className="hidden lg:block pt-5">
+          <nav aria-label={t('adm.title')} className="sticky top-20 space-y-4">
+            {groups.map((g) => (
+              <div key={g.key}>
+                <p className="px-3 text-[11px] font-bold uppercase tracking-widest text-muted">{t(g.label)}</p>
+                <ul className="mt-1 space-y-0.5">
+                  {g.tabs.map((x) => <li key={x}>{item(x, 'flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold', 'bg-brand-soft text-brand', 'text-ink hover:bg-surface')}</li>)}
+                </ul>
+              </div>
+            ))}
+          </nav>
+        </aside>
+        <div className="min-w-0">
+      <nav className="pt-2"><BackLink fallback="/app" /></nav>
+      <main className="py-4">
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <h1 className="text-2xl font-bold">{t(TAB_KEY[tab])}</h1>
+          {/* On phones the role badge moves here, so the top bar stays on one line. */}
+          <span className="sm:hidden chip bg-accent/20 text-ink">{t('adm.title')} · {t(`ax.role.${role}` as Key)}</span>
+        </div>
         {codesOnScreen() && <div className="mb-4"><Alert kind="warn">{t('adm.codesOnScreen')}</Alert></div>}
         {role === 'support' && <div className="mb-4"><Alert kind="info">{t('ax.readOnly')}</Alert></div>}
         {tab === 'overview' && <OverviewTab days={days} perms={perms} />}
@@ -96,11 +141,13 @@ export default async function AdminPage({ searchParams }: { searchParams: { tab?
         {tab === 'team' && <TeamTab perms={perms} userId={user.id} />}
         {tab === 'payments' && <PaymentsTab perms={perms} q={searchParams.pq ?? ''} />}
         {tab === 'privacy' && <PrivacyTab perms={perms} />}
-        {tab === 'system' && <SystemTab perms={perms} />}
-        {tab === 'accounts' && (searchParams.user ? <AccountTab perms={perms} userId={searchParams.user} me={user.id} /> : <AccountsTab q={searchParams.aq ?? ''} kind={(searchParams.kind as AccountKind) ?? 'all'} />)}
+        {tab === 'system' && <SystemTab perms={perms} failed={searchParams.failed === '1'} fullPhones={PHONE_ROLES.includes(role)} />}
+        {tab === 'accounts' && (searchParams.user ? <AccountTab perms={perms} userId={searchParams.user} me={user.id} /> : <AccountsTab q={searchParams.aq ?? ''} kind={(searchParams.kind as AccountKind) ?? 'all'} pph={searchParams.pph ?? ''} fullPhones={PHONE_ROLES.includes(role)} />)}
         {tab === 'export' && <ExportForm datasets={datasetsFor(role)} analytics={ANALYTICS_ROLES.includes(role)} phonesAllowed={PHONE_ROLES.includes(role)} />}
         {tab === 'partners' && <PartnersTab perms={perms} />}
       </main>
+        </div>
+      </div>
     </div>
   );
 }
@@ -319,7 +366,12 @@ async function EventsTab({ perms, q }: { perms: Perms; q: string }) {
               {rows.map(({ e, totals }) => (
                 <tr key={e.id} className="border-b border-line/60 align-top">
                   <td className="p-3">
-                    <Link className="font-semibold underline" href={`/app/e/${e.id}`}>{e.title}</Link>
+                    <span className="flex items-center gap-2">
+                      {e.cover_file_id
+                        ? <img src={`/api/files/${e.cover_file_id}`} alt="" className="w-14 h-9 rounded-md object-cover shrink-0" />
+                        : <span className="w-14 h-9 rounded-md bg-line shrink-0" aria-hidden />}
+                      <Link className="font-semibold underline" href={`/app/e/${e.id}`}>{e.title}</Link>
+                    </span>
                     <div className="text-xs text-muted">{e.owner_name ? `${e.owner_name} · ` : ''}{e.owner_phone?.startsWith('+') ? formatPhone(e.owner_phone) : e.owner_phone} · <a className="underline" href={`/e/${e.slug}`} target="_blank" rel="noopener">{t('ax.publicPage')}</a></div>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {e.urgent && <span className="chip bg-bad/15 text-bad">{t('ev.urgent')}</span>}
@@ -339,6 +391,7 @@ async function EventsTab({ perms, q }: { perms: Perms; q: string }) {
                     {perms['home.review'] && e.show_on_home && e.home_approved !== true && <AdminButton action="home" body={{ eventId: e.id, approved: true }} label={t('adm.homeApprove')} primary />}
                     {perms['home.review'] && e.show_on_home && e.home_approved === null && <AdminButton action="home" body={{ eventId: e.id, approved: false }} label={t('adm.homeDecline')} />}
                     {perms['home.review'] && e.show_on_home && e.home_approved === true && <AdminButton action="home" body={{ eventId: e.id, approved: false }} label={t('adm.homeRemove')} />}
+                    {perms['events.cover'] && <ImageAction action="event-cover" body={{ eventId: e.id }} field="fileId" label={e.cover_file_id ? t('ax.changeCover') : t('ax.addCover')} removeLabel={t('ax.removeCover')} hasImage={!!e.cover_file_id} maxSide={1600} />}
                     {perms['accounts.recover'] && <ReassignOwner eventId={e.id} />}
                   </td>
                 </tr>
@@ -536,14 +589,24 @@ async function SettingsTab({ perms, userId }: { perms: Perms; userId: string }) 
           <p className="text-sm text-muted">{t('ax.settingsReadOnly')}</p>
           <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-1 mt-3 text-sm">
             {Object.keys(DEFAULT_SETTINGS).map((k) => (
-              <div key={k} className="flex justify-between gap-2 border-b border-line/60 py-1"><dt className="font-mono text-xs">{k}</dt><dd className="font-semibold">{JSON.stringify(values[k])}</dd></div>
+              <div key={k} className="flex justify-between gap-2 border-b border-line/60 py-1"><dt className="text-xs">{t(`set.k.${k}` as Key)}</dt><dd className="font-semibold">{JSON.stringify(values[k])}</dd></div>
             ))}
           </dl>
         </section>
       )}
+      {perms['settings.edit'] && <TemplatesSection />}
       {perms['jobs.run'] && <RunJobs />}
     </div>
   );
+}
+
+async function TemplatesSection() {
+  const rows = await listTemplateOverrides(await getDb());
+  const overrides = Object.fromEntries(rows.map((r) => [`${r.stage}|${r.event_type}|${r.locale}`, r.body as string]));
+  const defaults: Record<string, string> = {};
+  for (const st of EDITABLE_STAGES) for (const ty of ['*', 'wedding', 'birthday', 'hospital', 'funeral', 'community', 'other']) for (const lo of ['en', 'lg', 'sw'])
+    defaults[`${st}|${ty}|${lo}`] = defaultMessage((ty === '*' ? 'wedding' : ty) as EventType, lo, st);
+  return <TemplatesEditor defaults={defaults} overrides={overrides} stages={EDITABLE_STAGES} />;
 }
 
 async function ReconTab({ perms }: { perms: Perms }) {
@@ -722,10 +785,11 @@ async function PrivacyTab({ perms }: { perms: Perms }) {
   );
 }
 
-async function SystemTab({ perms }: { perms: Perms }) {
+async function SystemTab({ perms, failed, fullPhones }: { perms: Perms; failed: boolean; fullPhones: boolean }) {
   const db = await getDb();
   const { t } = getT();
   const h = await health(db);
+  const msgs = await recentMessages(db, failed, fullPhones);
   const runs = await opsRuns(db, 20);
   const usingEmbedded = !process.env.DATABASE_URL;
   return (
@@ -744,6 +808,29 @@ async function SystemTab({ perms }: { perms: Perms }) {
           <div className="flex flex-wrap gap-2 pt-1">
             <OpsButton action="backup-now" label={t('ax.backupNow')} />
             <OpsButton action="retention-now" label={t('ax.cleanupNow')} />
+          </div>
+        )}
+      </section>
+      <section className="card p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-bold">{t('su.messageLog')}</h2>
+          <div className="flex gap-1 text-sm">
+            <Link href="/admin?tab=system" aria-current={!failed ? 'true' : undefined} className={`chip px-3 min-h-[32px] ${!failed ? 'bg-brand text-white' : 'bg-card border border-line'}`}>{t('ac.kind.all')}</Link>
+            <Link href="/admin?tab=system&failed=1" aria-current={failed ? 'true' : undefined} className={`chip px-3 min-h-[32px] ${failed ? 'bg-brand text-white' : 'bg-card border border-line'}`}>{t('su.failedOnly')}</Link>
+          </div>
+        </div>
+        {msgs.length === 0 ? <p className="text-muted mt-2">{t('adm.none')}</p> : (
+          <div className="overflow-x-auto mt-2">
+            <table className="w-full text-xs min-w-[640px]">
+              <tbody>{msgs.map((m, i) => (
+                <tr key={i} className="border-t border-line align-top">
+                  <td className="py-1.5 pr-3 whitespace-nowrap">{new Date(m.created_at).toISOString().slice(0, 16).replace('T', ' ')}</td>
+                  <td className="pr-3">{m.channel}</td><td className="pr-3">{m.purpose}</td><td className="pr-3">{m.recipient}</td>
+                  <td className={`pr-3 ${m.status === 'failed' || m.delivery_status === 'failed' ? 'text-bad font-semibold' : ''}`}>{m.status}{m.delivery_status ? ` / ${m.delivery_status}` : ''}</td>
+                  <td className="text-muted">{m.title ?? ''}{m.error ? ` · ${m.error}` : ''}</td>
+                </tr>
+              ))}</tbody>
+            </table>
           </div>
         )}
       </section>
@@ -770,12 +857,45 @@ async function SystemTab({ perms }: { perms: Perms }) {
 
 const KINDS: AccountKind[] = ['all', 'organizers', 'committee', 'staff', 'suspended'];
 
-async function AccountsTab({ q, kind }: { q: string; kind: AccountKind }) {
+async function AccountsTab({ q, kind, pph, fullPhones }: { q: string; kind: AccountKind; pph: string; fullPhones: boolean }) {
   const { t } = getT();
   const k = KINDS.includes(kind) ? kind : 'all';
-  const rows = await listAccounts(await getDb(), { q, kind: k });
+  const db = await getDb();
+  const rows = await listAccounts(db, { q, kind: k });
+  const found = pph ? await findPledger(db, pph, fullPhones) : null;
   return (
     <div className="space-y-3">
+      <section className="card p-4">
+        <h2 className="font-bold">{t('su.title')}</h2>
+        <p className="text-sm text-muted">{t('su.hint')}</p>
+        <form className="flex gap-2 mt-2" action="/admin">
+          <input type="hidden" name="tab" value="accounts" />
+          <input name="pph" defaultValue={pph} className="input" inputMode="tel" placeholder="0772 123 456" aria-label={t('su.title')} />
+          <button className="btn-outline px-4">{t('ax.find')}</button>
+        </form>
+        {pph && !found && <p className="text-sm text-bad mt-2">{t('err.invalid_phone')}</p>}
+        {found && (
+          <div className="mt-3 text-sm space-y-2">
+            {found.pledger ? (
+              <p><b>{found.pledger.name}</b> · {found.phone} · {t('su.since', { d: new Date(found.pledger.since).toISOString().slice(0, 10) })} · {t('ax.version', { v: found.pledger.consent ?? '—' })}</p>
+            ) : <p className="text-muted">{t('su.noPledges', { phone: found.phone })}</p>}
+            {found.pledges.length > 0 && (
+              <ul className="divide-y divide-line">{found.pledges.map((x, i) => (
+                <li key={i} className="py-1.5 flex flex-wrap justify-between gap-2">
+                  <Link className="underline" href={`/app/e/${x.event_id}`}>{x.title}</Link>
+                  <span>{formatMoney(x.amount)} · {t('my.balance')}: <b>{formatMoney(x.balance)}</b>{x.due ? ` · ${x.due}` : ''}</span>
+                </li>))}
+              </ul>
+            )}
+            <p className="font-semibold mt-2">{t('su.messages')}</p>
+            {found.messages.length === 0 ? <p className="text-muted">{t('adm.none')}</p> : (
+              <ul className="text-xs">{found.messages.map((m, i) => (
+                <li key={i} className="flex flex-wrap gap-2 py-0.5"><span>{new Date(m.created_at).toISOString().slice(0, 16).replace('T', ' ')}</span><span>{m.channel}</span><span>{m.purpose}</span><span className={m.status === 'failed' ? 'text-bad font-semibold' : ''}>{m.status}{m.delivery_status ? ` / ${m.delivery_status}` : ''}</span>{m.error && <span className="text-bad">{m.error}</span>}</li>
+              ))}</ul>
+            )}
+          </div>
+        )}
+      </section>
       <p className="text-sm text-muted">{t('ac.hint')}</p>
       <form className="flex gap-2" action="/admin">
         <input type="hidden" name="tab" value="accounts" />
@@ -793,7 +913,7 @@ async function AccountsTab({ q, kind }: { q: string; kind: AccountKind }) {
         <div className="card overflow-x-auto">
           <table className="w-full text-sm min-w-[760px]">
             <thead><tr className="text-left text-muted border-b border-line">
-              <th className="p-3">{t('acct.name')}</th><th className="p-3">{t('ac.login')}</th><th className="p-3">{t('ac.roles')}</th>
+              <th className="p-3">{t('pt.name')}</th><th className="p-3">{t('ac.login')}</th><th className="p-3">{t('ac.roles')}</th>
               <th className="p-3">{t('ac.joined')}</th><th className="p-3">{t('ac.status')}</th>
             </tr></thead>
             <tbody>
@@ -901,6 +1021,7 @@ async function PartnersTab({ perms }: { perms: Perms }) {
             </div>
             {can && (
               <div className="flex flex-wrap gap-1">
+                <ImageAction action="partner-update" body={{ id: p.id }} field="logoFileId" label={p.logo_file_id ? t('pt.changeLogo') : t('pt.logo')} removeLabel={t('pt.removeLogo')} hasImage={!!p.logo_file_id} maxSide={400} />
                 {i > 0 && <AdminButton action="partner-update" body={{ id: p.id, move: 'up' }} label="↑" />}
                 {i < rows.length - 1 && <AdminButton action="partner-update" body={{ id: p.id, move: 'down' }} label="↓" />}
                 <AdminButton action="partner-update" body={{ id: p.id, active: !p.active }} label={p.active ? t('pt.hide') : t('pt.show')} />

@@ -1,8 +1,28 @@
-# Ahadi v1.24 – Changes
+# Ahadi v1.25 – Changes
 
-*18 Nov 2026 · Choose-what-you-need data export, super admin control of all accounts, partners strip*
+*18 Nov 2026 · Demo logos and event pictures, admin portal reorganised and completed*
 
-## Latest changes in this version (v1.24)
+## Latest changes in this version (v1.25)
+
+- Demo logos for the 8 demo partners (simple illustrated badges, one per partner) and demo pictures on 7 of the 8 events (illustrations matched to the event: rings for the wedding, a candle for the funeral, a heart line for hospital appeals, a church at sunset, a water drop for the boreholes, a graduation cap). Peter's graduation keeps its real photo. Partner logos in the homepage strip are now larger (48 px).
+- Admin portal reorganised: a grouped sidebar on computers (Home; People; Events & trust; Money; Data & system) and one scrolling row on phones, with counts of waiting work (reports, documents, withdrawals to review, reconciliation, settings to approve, homepage requests). Each page has a clear title; on phones the staff role badge moves under the title so the top bar fits.
+- Settings now use plain-language names in groups (Fees & prices, Free plan, Tips & rewards, Safety limits, Messages & reminders, Homepage), with the technical name shown small underneath.
+- New: change or remove an event's cover picture (Super admin, Trust & safety), e.g. an inappropriate photo; each event in Admin → Events shows a small thumbnail. Change or remove a partner's logo.
+- New: SMS wording editor (Admin → Settings, super admins): change the text of every reminder, receipt and committee message per event type and language, with checks for allowed placeholders and the link; reset to the built-in text any time.
+- New support tools: find a pledger by phone (their pledges, balances and the messages sent to them) in Admin → Accounts, and a recent-messages log with a "failed only" filter in Admin → System.
+- Checked as every staff role (Super admin, Finance, Trust & safety, Support): every tab, every account page, every event's admin view and all searches load with no errors, no browser errors and nothing wider than the screen.
+- Fixed: the Accounts table said "Your name" instead of "Name"; "Log out" no longer wraps on phones. 3 new unit tests (73 in total).
+
+---
+
+## Earlier versions (for reference)
+
+Each section below happened in an earlier version, shown newest first.
+
+<!-- Changes made in v1.24 (18 Nov 2026) -->
+### v1.24 · 18 Nov 2026 · Choose-what-you-need data export, super admin control of all accounts, partners strip
+
+> Happened in **v1.24**, not in this version.
 
 - Removed "New event" from the organizer menu (top bar and phone bottom bar). The "+ New event" button on My events stays.
 - Admin → Export: staff tick the kinds of data they need (events, pledges, payments, withdrawals, refunds, Ahadi revenue, accounts, pledgers, messages, reports, audit log, analytics summary), choose a date range, an event type, Excel (one sheet per kind, plus an "About this export" sheet) or CSV (one kind). Each kind is limited to the staff roles allowed to see it; phone numbers are hidden unless a Super admin or Finance asks for them; files with personal data need a fresh code; every export is recorded in the audit log.
@@ -10,12 +30,7 @@
 - Homepage: a small sliding "Our partners" strip (pauses on hover; still and swipeable for people who prefer less motion). Eight demo partners with made-up names are included.
 - Admin → Partners (Super admin, Trust & safety): add partners with a short line, https website and logo; show/hide, reorder, delete. Demo partners are marked so they can be replaced before launch.
 - Database change: migration 012 (account suspension, partners). 4 new unit tests (70 in total); browser tests now 15 (export per role, accounts, partners strip).
-
----
-
-## Earlier versions (for reference)
-
-Each section below happened in an earlier version, shown newest first.
+<!-- End of v1.24 -->
 
 <!-- Changes made in v1.23 (17 Nov 2026) -->
 ### v1.23 · 17 Nov 2026 · Demo staff accounts for every admin role, and conflict-of-interest rules

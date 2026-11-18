@@ -39,7 +39,8 @@ export type AdminPermission =
   | 'ops.run'
   | 'accounts.view'
   | 'accounts.manage'
-  | 'partners.manage';
+  | 'partners.manage'
+  | 'events.cover';
 
 const MATRIX: Record<AdminPermission, readonly AdminRole[]> = {
   'admin.view': ['super', 'finance', 'trust', 'support'],
@@ -67,6 +68,7 @@ const MATRIX: Record<AdminPermission, readonly AdminRole[]> = {
   'accounts.view': ['super', 'finance', 'trust', 'support'],
   'accounts.manage': ['super'],
   'partners.manage': ['super', 'trust'],
+  'events.cover': ['super', 'trust'],
 };
 
 /** Settings that move money or change what people pay: changing them needs a second super admin. */

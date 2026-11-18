@@ -8,7 +8,7 @@ import { fillTemplate } from './sms';
  * Variables: {name} {event} {amount} {balance} {date} {link} {percent}
  * Luganda and Swahili drafts should be reviewed by a native speaker before launch.
  */
-type Stage = 'before' | 'due' | 'after' | 'thanks' | 'milestone' | 'invite' | 'otp' | 'pledged' | 'payout_requested' | 'role_changed' | 'owner_changed';
+export type Stage = 'before' | 'due' | 'after' | 'thanks' | 'milestone' | 'invite' | 'otp' | 'pledged' | 'payout_requested' | 'role_changed' | 'owner_changed';
 type Variant = 'warm' | 'calm';
 const T: Record<string, Record<Variant, Partial<Record<Stage, string>>>> = {
   en: {
@@ -113,4 +113,16 @@ export async function renderMessage(
   const variant: Variant = isSombre(eventType) ? 'calm' : 'warm';
   const body = rows[0]?.body ?? T[loc][variant][stage] ?? T.en[variant][stage] ?? '';
   return fillTemplate(body, vars);
+}
+
+/** Stages whose SMS wording staff may change in Admin → Settings (the one-time code text is fixed). */
+export const EDITABLE_STAGES: Stage[] = ['pledged', 'before', 'due', 'after', 'thanks', 'milestone', 'invite', 'payout_requested', 'role_changed', 'owner_changed'];
+/** Placeholders a message may use. */
+export const PLACEHOLDERS = ['name', 'event', 'amount', 'balance', 'date', 'link', 'percent', 'role'];
+
+/** Built-in wording for a stage (before any admin change). */
+export function defaultMessage(eventType: EventType, locale: string, stage: Stage): string {
+  const loc = T[locale] ? locale : 'en';
+  const variant: Variant = isSombre(eventType) ? 'calm' : 'warm';
+  return T[loc][variant][stage] ?? T.en[variant][stage] ?? '';
 }

@@ -150,7 +150,7 @@ export async function runRoleTests(BASE) {
     await login(page, SUPER);
     await page.goto('/admin');
     await page.getByText('Waiting for the team').waitFor();
-    expect(await page.getByText('Admin · Super admin').count() === 1, 'role chip');
+    expect(await page.getByText('Admin · Super admin').count() >= 1, 'role chip');
     expect((await post(page, '/api/admin/team-set', { phone: SUPPORT, role: 'support' })) === 401, 'no step-up asked');
     await stepUp(page);
     expect((await post(page, '/api/admin/team-set', { phone: SUPPORT, role: 'support' })) === 200, 'team-set failed');

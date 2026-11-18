@@ -13,12 +13,12 @@ export function PartnersStrip({ partners }: { partners: PartnerItem[] }) {
   const loop = [...partners, ...partners]; // two copies so the slide joins up seamlessly
   const card = (p: PartnerItem, i: number, hidden: boolean) => {
     const inner = (
-      <span className="flex items-center gap-3 rounded-2xl border border-line bg-card px-4 py-3 min-w-[220px] h-16">
+      <span className="flex items-center gap-3 rounded-2xl border border-line bg-card px-4 py-3 min-w-[240px] h-[76px]">
         {p.logoFileId ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={`/api/files/${p.logoFileId}`} alt="" className="w-10 h-10 object-contain shrink-0" loading="lazy" />
+          <img src={`/api/files/${p.logoFileId}`} alt="" className="w-12 h-12 rounded-xl object-contain shrink-0" loading="lazy" />
         ) : (
-          <span aria-hidden className="w-10 h-10 shrink-0 rounded-xl bg-brand-soft text-brand font-extrabold flex items-center justify-center text-sm">
+          <span aria-hidden className="w-12 h-12 shrink-0 rounded-xl bg-brand-soft text-brand font-extrabold flex items-center justify-center text-sm">
             {p.name.split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase()}
           </span>
         )}

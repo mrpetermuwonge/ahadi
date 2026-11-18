@@ -4,13 +4,14 @@ import { getDb } from '@/lib/db';
 import { audit } from '@/lib/audit';
 import { adminReview } from '@/lib/services/payouts';
 import { runPendingPayments, runReconciliation, runReminders } from '@/lib/services/jobs';
-import { adminReassignOwner } from '@/lib/services/events';
+import { adminReassignOwner, adminSetEventCover } from '@/lib/services/events';
 import { changeSettings, decideProposal, setAdminRole } from '@/lib/services/adminTeam';
 import { refundPayment } from '@/lib/services/payments';
 import { erasePledgerByPhone } from '@/lib/services/pledges';
 import { runBackup, runRetention } from '@/lib/services/ops';
 import { reactivateAccount, renameAccount, signOutEverywhere, suspendAccount } from '@/lib/services/accounts';
 import { addPartner, deletePartner, updatePartner } from '@/lib/services/partners';
+import { setTemplate } from '@/lib/services/templates';
 import type { AdminPermission, AdminRole } from '@/lib/adminPermissions';
 import { api, apiAdmin, jsonError, requireStepUp } from '@/lib/web';
 
@@ -42,6 +43,8 @@ const NEEDS: Record<string, AdminPermission> = {
   'partner-add': 'partners.manage',
   'partner-update': 'partners.manage',
   'partner-delete': 'partners.manage',
+  'event-cover': 'events.cover',
+  'template-set': 'settings.edit',
 };
 const STEP_UP = new Set(['payout-review', 'settings', 'setting-decide', 'team-set', 'reassign-owner', 'refund', 'erase-pledger', 'account-suspend', 'account-reactivate', 'account-signout']);
 
@@ -175,8 +178,18 @@ export const POST = api(async (req, { params }: { params: { action: string } }) 
       return NextResponse.json({ id: await addPartner(db, user.id, b) });
     }
     case 'partner-update': {
-      const b = z.object({ id: z.string().max(40), active: z.boolean().optional(), move: z.enum(['up', 'down']).optional() }).parse(body);
+      const b = z.object({ id: z.string().max(40), active: z.boolean().optional(), move: z.enum(['up', 'down']).optional(), logoFileId: z.string().max(40).nullable().optional() }).parse(body);
       await updatePartner(db, user.id, b.id, b);
+      break;
+    }
+    case 'event-cover': {
+      const b = z.object({ eventId: z.string().max(40), fileId: z.string().max(40).nullable() }).parse(body);
+      await adminSetEventCover(db, b.eventId, user.id, b.fileId);
+      break;
+    }
+    case 'template-set': {
+      const b = z.object({ eventType: z.string().max(20), locale: z.string().max(5), stage: z.string().max(30), body: z.string().max(600).nullable() }).parse(body);
+      await setTemplate(db, user.id, b);
       break;
     }
     case 'partner-delete': {

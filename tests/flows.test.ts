@@ -972,3 +972,46 @@ describe('accounts, export and partners (v1.24)', () => {
     expect((await publicPartners(db)).some((p) => p.id === id)).toBe(false);
   });
 });
+
+describe('admin content tools (v1.25)', () => {
+  it('SMS wording: checked placeholders, used by messages, and can be reset', async () => {
+    const { setTemplate } = await import('@/lib/services/templates');
+    const { renderMessage } = await import('@/lib/messages');
+    const admin = await mkUser('+256700001001', true);
+    await expect(setTemplate(db, admin.id, { eventType: '*', locale: 'en', stage: 'due', body: 'Pay {money} now {link}' })).rejects.toMatchObject({ code: 'template_placeholder' });
+    await expect(setTemplate(db, admin.id, { eventType: '*', locale: 'en', stage: 'due', body: 'Pay now please' })).rejects.toMatchObject({ code: 'template_link' });
+    await setTemplate(db, admin.id, { eventType: '*', locale: 'en', stage: 'due', body: 'Hi {name}, {balance} for {event} is due today: {link}' });
+    expect(await renderMessage(db, 'wedding', 'en', 'due', { name: 'Ann', balance: 'UGX 5,000', event: 'X', link: 'L' })).toBe('Hi Ann, UGX 5,000 for X is due today: L');
+    await setTemplate(db, admin.id, { eventType: '*', locale: 'en', stage: 'due', body: null });
+    expect(await renderMessage(db, 'wedding', 'en', 'due', { name: 'Ann', balance: 'B', event: 'X', link: 'L' })).not.toContain('Hi Ann,');
+  });
+
+  it('staff can set or remove an event cover only with their own uploaded image', async () => {
+    const { adminSetEventCover } = await import('@/lib/services/events');
+    const owner = await mkUser('+256700001002');
+    const admin = await mkUser('+256700001003', true);
+    const e = await mkEvent(owner);
+    const [f] = await db.query(`INSERT INTO files(id, owner_user_id, mime, size_bytes, data, is_public) VALUES ($1,$2,'image/jpeg',3,'\\x010203',false) RETURNING id`, [newId('fil'), admin.id]);
+    const [other] = await db.query(`INSERT INTO files(id, owner_user_id, mime, size_bytes, data, is_public) VALUES ($1,$2,'image/jpeg',3,'\\x010203',false) RETURNING id`, [newId('fil'), owner.id]);
+    await expect(adminSetEventCover(db, e.id, admin.id, other.id)).rejects.toMatchObject({ code: 'invalid_input' });
+    await adminSetEventCover(db, e.id, admin.id, f.id);
+    const [row] = await db.query(`SELECT e.cover_file_id, fl.is_public FROM events e JOIN files fl ON fl.id=e.cover_file_id WHERE e.id=$1`, [e.id]);
+    expect(row).toEqual({ cover_file_id: f.id, is_public: true });
+    await adminSetEventCover(db, e.id, admin.id, null);
+    const [after] = await db.query(`SELECT cover_file_id FROM events WHERE id=$1`, [e.id]);
+    expect(after.cover_file_id).toBeNull();
+  });
+
+  it('support lookup finds a pledger by phone with masked numbers', async () => {
+    const { findPledger } = await import('@/lib/services/support');
+    const owner = await mkUser('+256700001004');
+    const e = await mkEvent(owner);
+    await pledge(e.id, '0772111004', 15000, 'later');
+    const r = await findPledger(db, '0772 111 004', false);
+    expect(r!.pledger!.name).toBe('Test Person');
+    expect(r!.phone).toContain('***');
+    expect(r!.pledges[0]).toMatchObject({ amount: 15000, balance: 15000 });
+    expect((r!.pledges[0] as any).access_token).toBeUndefined();
+    expect((await findPledger(db, '0772 111 004', true))!.phone).toBe('+256772111004');
+  });
+});
