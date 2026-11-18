@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useT } from './I18n';
 import { Alert } from './Ui';
@@ -25,7 +25,7 @@ export function AddPhone() {
     if (!r.ok) return setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
     if (!sent) return setSent(r.data);
     setMsg({ kind: 'ok', text: t('acc.phoneAdded') });
-    router.refresh();
+    startTransition(() => router.refresh());
   }
 
   return (

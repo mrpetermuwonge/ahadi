@@ -34,8 +34,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="min-h-screen pb-24 md:pb-6">
       <header className="sticky top-0 z-20 bg-surface/90 backdrop-blur border-b border-line/60">
         <div className="mx-auto max-w-3xl flex items-center justify-between px-4 py-2">
-          <Logo />
-          <div className="flex items-center gap-1">
+          <span className="shrink-0"><Logo /></span>
+          <div className="flex items-center gap-1 min-w-0">
             <nav className="hidden md:flex gap-1 mr-2">
               {nav.map((n) => item(n, 'btn-ghost min-h-[40px] px-3 text-sm', n.label))}
             </nav>

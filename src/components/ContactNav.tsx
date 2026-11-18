@@ -21,7 +21,7 @@ export function ContactNav({ topic }: { topic?: 'payment' | 'pledge' | 'event' |
         goToContactForm(form, true);
         history.replaceState(null, '', '#contact');
       }}
-      className="group inline-flex items-center gap-1.5 min-h-[40px] rounded-full border border-brand/25 bg-brand-soft/40 px-3 text-sm font-semibold text-brand hover:bg-brand hover:text-brand-ink transition-colors"
+      className="group inline-flex shrink-0 items-center gap-1.5 min-h-[40px] min-w-[40px] justify-center rounded-full border border-brand/25 bg-brand-soft/40 px-2.5 sm:px-3 text-sm whitespace-nowrap font-semibold text-brand hover:bg-brand hover:text-brand-ink transition-colors"
     >
       <span className="relative">
         <svg aria-hidden viewBox="0 0 24 24" className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

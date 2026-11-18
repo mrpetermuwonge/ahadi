@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useT } from '@/components/I18n';
 import { Alert } from '@/components/Ui';
@@ -28,7 +28,7 @@ export function AdminButton({ action, body, label, primary }: { action: string; 
           const r = await apiSend(`/api/admin/${action}`, { ...(body as object), note });
           setBusy(false);
           if (!r.ok) setError(r.error);
-          else router.refresh();
+          else startTransition(() => router.refresh());
         }}>
         {busy ? t('a.loading') : label}
       </button>
@@ -77,7 +77,7 @@ export function SettingsEditor({ values, keys, moneyKeys }: { values: Record<str
       if (r.data.applied.length) parts.push(t('ax.applied', { k: r.data.applied.join(', ') }));
       if (r.data.proposed.length) parts.push(t('ax.proposed', { k: r.data.proposed.join(', ') }));
       setMsg({ kind: r.data.proposed.length ? 'info' : 'ok', text: parts.join(' ') || t('ax.noChanges') });
-      router.refresh();
+      startTransition(() => router.refresh());
     }}>
       <h2 className="font-bold">{t('adm.settings')}</h2>
       <p className="text-sm text-muted">{t('ax.settingsHint')}</p>
@@ -118,7 +118,7 @@ export function RunJobs() {
       <button className="btn-outline" onClick={async () => {
         const r = await apiSend('/api/admin/run-jobs', {});
         setRes(r.ok ? JSON.stringify(r.data) : r.error);
-        router.refresh();
+        startTransition(() => router.refresh());
       }}>{t('adm.runJobs')}</button>
       {res && <p className="text-xs mt-2 break-all">{t('adm.jobsDone', { r: res })}</p>}
     </div>
@@ -143,7 +143,7 @@ export function TeamForm() {
       if (!r.ok) return r.error === 'step_up_cancelled' ? undefined : setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
       setMsg({ kind: 'ok', text: t('ax.teamSaved') });
       setPhone('');
-      router.refresh();
+      startTransition(() => router.refresh());
     }}>
       <h2 className="font-bold">{t('ax.teamManage')}</h2>
       <p className="text-sm text-muted">{t('ax.teamHint')}</p>
@@ -188,7 +188,7 @@ export function ReassignOwner({ eventId }: { eventId: string }) {
           setBusy(false);
           if (!r.ok) return setError(r.error);
           setOpen(false);
-          router.refresh();
+          startTransition(() => router.refresh());
         }}>{busy ? t('a.loading') : t('ax.recoverConfirm')}</button>
         <button type="button" className="btn-ghost min-h-[36px] px-3 text-xs" onClick={() => setOpen(false)}>{t('a.cancel')}</button>
       </div>
@@ -214,7 +214,7 @@ export function EraseForm() {
       if (!r.ok) return r.error === 'step_up_cancelled' ? undefined : setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
       setMsg({ kind: 'ok', text: t('ax.erased') });
       setPhone('');
-      router.refresh();
+      startTransition(() => router.refresh());
     }}>
       <h2 className="font-bold">{t('ax.eraseTitle')}</h2>
       <p className="text-sm text-muted">{t('ax.eraseHint')}</p>
@@ -241,7 +241,7 @@ export function OpsButton({ action, label }: { action: 'backup-now' | 'retention
         const r = await apiSend(`/api/admin/${action}`, {});
         setBusy(false);
         setRes(r.ok ? JSON.stringify(r.data) : t(`err.${r.error}` as any));
-        router.refresh();
+        startTransition(() => router.refresh());
       }}>{busy ? t('a.loading') : label}</button>
       {res && <span className="text-xs text-muted break-all max-w-md">{res}</span>}
     </span>
@@ -264,7 +264,7 @@ export function AccountActions({ userId, name, suspended }: { userId: string; na
     setBusy(false);
     if (!r.ok) return r.error === 'step_up_cancelled' ? undefined : setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
     setMsg({ kind: 'ok', text: ok });
-    router.refresh();
+    startTransition(() => router.refresh());
   };
   return (
     <section className="card p-5 space-y-4">
@@ -317,7 +317,7 @@ export function PartnerForm() {
       if (!r.ok) return setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
       setName(''); setTagline(''); setUrl(''); setLogoId(null);
       setMsg({ kind: 'ok', text: t('pt.added') });
-      router.refresh();
+      startTransition(() => router.refresh());
     }}>
       <h3 className="font-bold">{t('pt.add')}</h3>
       <div className="grid sm:grid-cols-3 gap-3">
@@ -358,7 +358,7 @@ export function ImageAction({ action, body, field, label, removeLabel, hasImage,
   const [error, setError] = useState<string | null>(null);
   const send = async (id: string | null) => {
     const r = await apiSend(`/api/admin/${action}`, { ...body, [field]: id });
-    if (!r.ok) setError(r.error); else router.refresh();
+    if (!r.ok) setError(r.error); else startTransition(() => router.refresh());
   };
   return (
     <span className="inline-flex flex-col gap-1">
@@ -398,7 +398,7 @@ export function TemplatesEditor({ defaults, overrides, stages }: { defaults: Rec
     if (!r.ok) return setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
     setMsg({ kind: 'ok', text: body ? t('tp.saved') : t('tp.reset') });
     if (!body) setText('');
-    router.refresh();
+    startTransition(() => router.refresh());
   };
   return (
     <section className="card p-5 space-y-3">
@@ -442,11 +442,11 @@ export function SupportReply({ requestId, status }: { requestId: string; status:
     if (!r.ok) return setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
     setBody('');
     setMsg({ kind: 'ok', text: t('hp.replied') });
-    router.refresh();
+    startTransition(() => router.refresh());
   };
   const setStatus = async (change: object) => {
     const r = await apiSend('/api/admin/support-status', { requestId, ...change });
-    if (r.ok) router.refresh(); else setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
+    if (r.ok) startTransition(() => router.refresh()); else setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
   };
   return (
     <section className="card p-5 space-y-3">

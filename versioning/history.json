@@ -394,5 +394,17 @@
       "The right topic is chosen for you: \"My pledge\" from event, pledge and My pledges pages, \"Account\" from login, \"An event I run\" from the organizer area.",
       "People who turn off motion on their device get a steady outline instead of the glow. 1 new browser test (19 in total, all passing)."
     ]
+  },
+  {
+    "version": "1.30",
+    "date": "18 Nov 2026",
+    "title": "Clear Log in button, and saved messages no longer vanish",
+    "code_saved": true,
+    "changes": [
+      "Homepage title bar: the account button is always visible and clear. Signed out it is a green \"Log in\" button; signed in it shows \"My events\" with a person icon (the login button was never removed: it changes to \"My events\" once you are signed in). On small phones it no longer squeezes onto two lines or presses against the logo; the language picker hides its globe on phones to make room.",
+      "Every page title bar was checked at 6 screen widths (320 to 1280px), signed in and signed out: nothing overlaps, nothing wraps, nothing spills off the screen.",
+      "Important fix found while testing: in the real (production) app, after saving something (a meeting pledge, a list upload, a Support answer, settings…) the whole page was rebuilt, so the form closed and the \"Done\" message disappeared before people could read it. Cause: a page-wide loading placeholder at the top level. It was removed (the pages keep their own loading placeholders, and Admin got its own), and every refresh after a save now updates the page in the background.",
+      "Browser tests now run on a production build, exactly like real users get (they used to run in development mode, which hid the problem above), and each test acts as a separate visitor. 19 browser checks and 83 unit tests pass, twice in a row."
+    ]
   }
 ]

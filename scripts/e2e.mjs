@@ -4,7 +4,7 @@
  *
  * It never touches your data: it starts a separate copy of the app on port 3300 with its own fresh demo database
  * (.data/e2e-<time>) and its own build folder (.next-e2e), runs the checks, then stops and deletes that database.
- * Set E2E_BROWSER=chrome to use Chrome instead of Edge, E2E_HEADED=1 to watch it.
+ * Set E2E_BROWSER=chrome to use Chrome instead of Edge, E2E_HEADED=1 to watch it, E2E_DEV=1 to skip the production build.
  */
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
@@ -54,8 +54,17 @@ let failed = 0;
 try {
   console.log('• Seeding a fresh demo database for the browser tests…');
   await run(npx, ['tsx', 'scripts/seed.ts']);
-  console.log(`• Starting a test copy of the app on ${BASE}…`);
-  server = spawn(npx, ['next', 'dev', '-p', String(PORT)], { cwd: root, env, stdio: 'ignore', shell: isWin });
+  // A production build, like real users get: pages are ready at once, so clicks never land on a page that is still
+  // being compiled (dev mode made the tests flaky). E2E_DEV=1 uses the dev server instead (faster to start).
+  if (process.env.E2E_DEV === '1') {
+    console.log(`• Starting a test copy of the app (dev mode) on ${BASE}…`);
+    server = spawn(npx, ['next', 'dev', '-p', String(PORT)], { cwd: root, env, stdio: 'ignore', shell: isWin });
+  } else {
+    console.log('• Building the app (production build, about 1–2 minutes)…');
+    await run(npx, ['next', 'build']);
+    console.log(`• Starting a test copy of the app on ${BASE}…`);
+    server = spawn(npx, ['next', 'start', '-p', String(PORT)], { cwd: root, env, stdio: 'ignore', shell: isWin });
+  }
   await waitFor(`${BASE}/api/health`);
   const { runRoleTests } = await import('../tests/e2e/roles.e2e.mjs');
   failed = await runRoleTests(BASE);

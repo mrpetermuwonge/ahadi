@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useT } from '@/components/I18n';
 import { Alert } from '@/components/Ui';
@@ -56,7 +56,7 @@ export function MyPledge({ token, data, fee, tips }: { token: string; data: Data
     if (!r.ok) return err(r.error);
     setMsg({ kind: 'ok', text: okText });
     setMode('none');
-    router.refresh();
+    startTransition(() => router.refresh());
   }
 
   const givenToCommittee = data.offline.reduce((s, x) => s + x.amount, 0);
@@ -87,7 +87,7 @@ export function MyPledge({ token, data, fee, tips }: { token: string; data: Data
                 const r = await apiSend(`/api/p/${token}/confirm`, {});
                 setBusy(false);
                 if (!r.ok) return setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
-                router.refresh();
+                startTransition(() => router.refresh());
               }}>{t('rp.yes')}</button>
               <button className="btn-outline" disabled={busy || paidOnline} onClick={async () => {
                 if (!window.confirm(t('rp.noConfirm'))) return;
@@ -95,7 +95,7 @@ export function MyPledge({ token, data, fee, tips }: { token: string; data: Data
                 const r = await apiSend(`/api/p/${token}/dispute`, {});
                 setBusy(false);
                 if (!r.ok) return setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
-                router.refresh();
+                startTransition(() => router.refresh());
               }}>{t('rp.no')}</button>
             </div>
           </div>

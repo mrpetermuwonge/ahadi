@@ -32,13 +32,21 @@ export default async function Landing() {
   const types = ['wedding', 'birthday', 'hospital', 'funeral', 'community'] as const;
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="mx-auto w-full max-w-5xl flex items-center justify-between px-4 py-3">
-        <Logo />
-        <div className="flex items-center gap-2">
+      <header className="mx-auto w-full max-w-5xl flex items-center justify-between gap-2 px-4 py-3">
+        <span className="shrink-0"><Logo /></span>
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
           <ContactNav />
           <LangSwitcher />
-          <Link href="/my" className="btn-ghost min-h-[44px] px-3 hidden sm:inline-flex">{t('nav.myPledges')}</Link>
-          <Link href={user ? '/app' : '/login'} className="btn-ghost min-h-[44px] px-3">{user ? t('nav.events') : t('a.login')}</Link>
+          <Link href="/my" className="btn-ghost min-h-[44px] px-3 hidden md:inline-flex whitespace-nowrap">{t('nav.myPledges')}</Link>
+          {/* Always visible: "Log in" when signed out, "My events" (with a person icon) when signed in. */}
+          {user ? (
+            <Link href="/app" aria-label={t('nav.events')} className="btn-outline shrink-0 min-h-[40px] px-3 max-[359px]:px-2.5 text-sm whitespace-nowrap gap-1.5">
+              <svg aria-hidden viewBox="0 0 24 24" className="w-4 h-4 hidden sm:block max-[359px]:block" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" /></svg>
+              <span className="max-[359px]:sr-only">{t('nav.events')}</span>
+            </Link>
+          ) : (
+            <Link href="/login" className="btn-primary shrink-0 min-h-[40px] px-4 text-sm whitespace-nowrap">{t('a.login')}</Link>
+          )}
         </div>
       </header>
 

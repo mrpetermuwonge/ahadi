@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useT } from '@/components/I18n';
 import { Alert } from '@/components/Ui';
@@ -44,7 +44,7 @@ export function RecordPledges({ eventId, currency, canRecordCash }: { eventId: s
     if (r.data.duplicates.length) return setMsg({ kind: 'info', text: t('rp.dupOne') });
     setMsg({ kind: 'ok', text: paidNum > 0 ? t('rp.addedOnePaid', { name: f.name, paid: fmtMoney(paidNum, currency) }) : t('rp.addedOne', { name: f.name }) });
     setF(empty);
-    router.refresh();
+    startTransition(() => router.refresh());
   }
 
   async function upload(previewOnly: boolean) {
@@ -59,7 +59,7 @@ export function RecordPledges({ eventId, currency, canRecordCash }: { eventId: s
     if (previewOnly) return setPreview(j);
     setPreview(null); setFile(null);
     setMsg({ kind: j.errors?.length ? 'info' : 'ok', text: summary(j) });
-    router.refresh();
+    startTransition(() => router.refresh());
   }
 
   function template() {
@@ -175,7 +175,7 @@ export function RemindOwing({ eventId, currency, count, total, lastAt, nextAt }:
         setBusy(false);
         if (!r.ok) return setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
         setMsg({ kind: 'ok', text: t('nd.sent', { n: r.data.sent }) });
-        router.refresh();
+        startTransition(() => router.refresh());
       }}>{busy ? t('a.loading') : t('nd.button', { n: count })}</button>
       {nextAt && <p className="text-xs text-muted mt-2">{t('nd.next', { d: fmt(nextAt) })}</p>}
     </section>
@@ -226,7 +226,7 @@ export function UpdatesPanel({ eventId, updates, canPost, staffHide = false }: {
             if (!r.ok) return setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
             setMsg({ kind: r.data.notifySkipped ? 'info' : 'ok', text: r.data.notifySkipped ? t('up.postedNoNotify') : t('up.posted', { n: r.data.notified }) });
             setBody(''); setImage(null);
-            router.refresh();
+            startTransition(() => router.refresh());
           }}>{busy ? t('a.loading') : t('up.post')}</button>
         </div>
       )}
@@ -241,14 +241,14 @@ export function UpdatesPanel({ eventId, updates, canPost, staffHide = false }: {
                 <button type="button" className="text-sm text-bad font-semibold mt-1" onClick={async () => {
                   if (!window.confirm(t('up.hideConfirm'))) return;
                   const r = await apiSend('/api/admin/update-hide', { eventId, updateId: u.id });
-                  if (r.ok) router.refresh();
+                  if (r.ok) startTransition(() => router.refresh());
                 }}>{t('up.hideStaff')}</button>
               )}
               {canPost && !u.hidden_at && (
                 <button type="button" className="text-sm text-bad font-semibold mt-1" onClick={async () => {
                   if (!window.confirm(t('up.removeConfirm'))) return;
                   const r = await apiSend(`/api/events/${eventId}/remove-update`, { updateId: u.id });
-                  if (r.ok) router.refresh();
+                  if (r.ok) startTransition(() => router.refresh());
                 }}>{t('up.remove')}</button>
               )}
             </li>

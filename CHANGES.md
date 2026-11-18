@@ -1,19 +1,30 @@
-# Ahadi v1.29 – Changes
+# Ahadi v1.30 – Changes
 
-*18 Nov 2026 · "Contact us" in the title bar*
+*18 Nov 2026 · Clear Log in button, and saved messages no longer vanish*
 
-## Latest changes in this version (v1.29)
+## Latest changes in this version (v1.30)
 
-- A "Contact us" button (chat icon with a green dot) is now in the title bar of the homepage, Help, every event page, login, My pledges, personal pledge pages and the organizer area. On phones it shows as the icon only, so the bar does not get crowded.
-- On the homepage and Help page it glides down to the contact form, makes the form glow briefly and (on a computer) puts the cursor in "Your name". On other pages it opens Help → contact form, which glows the same way.
-- The right topic is chosen for you: "My pledge" from event, pledge and My pledges pages, "Account" from login, "An event I run" from the organizer area.
-- People who turn off motion on their device get a steady outline instead of the glow. 1 new browser test (19 in total, all passing).
+- Homepage title bar: the account button is always visible and clear. Signed out it is a green "Log in" button; signed in it shows "My events" with a person icon (the login button was never removed: it changes to "My events" once you are signed in). On small phones it no longer squeezes onto two lines or presses against the logo; the language picker hides its globe on phones to make room.
+- Every page title bar was checked at 6 screen widths (320 to 1280px), signed in and signed out: nothing overlaps, nothing wraps, nothing spills off the screen.
+- Important fix found while testing: in the real (production) app, after saving something (a meeting pledge, a list upload, a Support answer, settings…) the whole page was rebuilt, so the form closed and the "Done" message disappeared before people could read it. Cause: a page-wide loading placeholder at the top level. It was removed (the pages keep their own loading placeholders, and Admin got its own), and every refresh after a save now updates the page in the background.
+- Browser tests now run on a production build, exactly like real users get (they used to run in development mode, which hid the problem above), and each test acts as a separate visitor. 19 browser checks and 83 unit tests pass, twice in a row.
 
 ---
 
 ## Earlier versions (for reference)
 
 Each section below happened in an earlier version, shown newest first.
+
+<!-- Changes made in v1.29 (18 Nov 2026) -->
+### v1.29 · 18 Nov 2026 · "Contact us" in the title bar
+
+> Happened in **v1.29**, not in this version.
+
+- A "Contact us" button (chat icon with a green dot) is now in the title bar of the homepage, Help, every event page, login, My pledges, personal pledge pages and the organizer area. On phones it shows as the icon only, so the bar does not get crowded.
+- On the homepage and Help page it glides down to the contact form, makes the form glow briefly and (on a computer) puts the cursor in "Your name". On other pages it opens Help → contact form, which glows the same way.
+- The right topic is chosen for you: "My pledge" from event, pledge and My pledges pages, "Account" from login, "An event I run" from the organizer area.
+- People who turn off motion on their device get a steady outline instead of the glow. 1 new browser test (19 in total, all passing).
+<!-- End of v1.29 -->
 
 <!-- Changes made in v1.28 (18 Nov 2026) -->
 ### v1.28 · 18 Nov 2026 · Partners strip fits the page

@@ -22,7 +22,9 @@ export async function runRoleTests(BASE) {
   });
   const results = [];
   const test = async (name, fn) => {
-    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, baseURL: BASE });
+    // Each test is a different visitor with its own address, like real people. (Ahadi allows 30 sign-in calls a
+    // minute per address; one address for the whole suite would trip that security limit, which is working.)
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, baseURL: BASE, extraHTTPHeaders: { 'x-forwarded-for': `10.9.${results.length}.1` } });
     const page = await ctx.newPage();
     try {
       await page.goto('/login');
@@ -44,7 +46,7 @@ export async function runRoleTests(BASE) {
     const r = await (await fetch('/api/auth/request', { method: 'POST', headers: J, body: JSON.stringify({ kind: 'phone', value: phone }) })).json();
     const v = await fetch('/api/auth/verify', { method: 'POST', headers: J, body: JSON.stringify({ kind: 'phone', value: phone, code: r.devCode }) });
     return v.status;
-  }, { phone, J });
+  }, { phone, J }).then((status) => { if (status !== 200) throw new Error(`login as ${phone} refused (${status})`); return status; });
   /** "Confirm it's you" via the API (fresh code to the account's own phone). */
   const stepUp = (page) => page.evaluate(async (J) => {
     const s = await (await fetch('/api/auth/step-up', { method: 'POST', headers: J, body: '{}' })).json();

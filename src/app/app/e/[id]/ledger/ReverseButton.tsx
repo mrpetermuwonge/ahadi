@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useT } from '@/components/I18n';
 import { apiSend } from '@/components/client-utils';
@@ -17,7 +17,7 @@ export function ReverseButton({ eventId, journalId }: { eventId: string; journal
           if (!reason) return;
           const r = await apiSend(`/api/events/${eventId}/reverse`, { journalId, reason });
           if (!r.ok) setError(r.error);
-          else router.refresh();
+          else startTransition(() => router.refresh());
         }}
       >
         {t('ledger.reverse')}

@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useT } from '@/components/I18n';
 import { Alert } from '@/components/Ui';
@@ -36,7 +36,7 @@ export function SettingsForm({ eventId, initial, homeStatus, sombre, plan, verif
     setBusy(false);
     if (!r.ok) return fail(r.error);
     setMsg({ kind: 'ok', text: t('set.saved') });
-    router.refresh();
+    startTransition(() => router.refresh());
   }
 
   async function buy(action: 'buy-pass' | 'buy-credits') {
@@ -60,7 +60,7 @@ export function SettingsForm({ eventId, initial, homeStatus, sombre, plan, verif
     setBusy(false);
     if (!r.ok) return fail(r.error);
     setMsg({ kind: 'ok', text: t('set.verifyPending') });
-    router.refresh();
+    startTransition(() => router.refresh());
   }
 
   return (

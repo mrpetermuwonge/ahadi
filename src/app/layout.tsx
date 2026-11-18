@@ -28,6 +28,11 @@ export const viewport: Viewport = {
   ],
 };
 
+/*
+ * Do NOT add src/app/loading.tsx. In production, router.refresh() (used after every save) re-renders from the root,
+ * and a root loading boundary makes React rebuild the whole page: forms close and "Saved" messages vanish.
+ * Put loading.tsx files in sub-folders instead (app/, admin/, e/[slug]/, my/, p/[token]/ … have their own).
+ */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = getLocale();
   return (

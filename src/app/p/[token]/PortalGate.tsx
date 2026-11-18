@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useT } from '@/components/I18n';
 import { Alert } from '@/components/Ui';
@@ -37,7 +37,7 @@ export function PortalGate({ token, eventTitle }: { token: string; eventTitle: s
       setBusy(false);
       return setError(r.error);
     }
-    router.refresh(); // the page now shows the pledge
+    startTransition(() => router.refresh()); // the page now shows the pledge
   }
 
   return (

@@ -1,5 +1,5 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useT } from '@/components/I18n';
 import { StateChip } from '@/components/Ui';
@@ -39,7 +39,7 @@ export function PledgeList({ eventId, rows, currency, canAdjust }: { eventId: st
     const r = await apiSend(`/api/events/${eventId}/adjust-pledge`, { pledgeId: id, amount: Number(digits(newAmount)) });
     if (!r.ok) return setError(r.error);
     setEditing(null);
-    router.refresh();
+    startTransition(() => router.refresh());
   }
 
   const filters = ['all', 'paid', 'partial', 'unpaid', 'overdue'] as const;

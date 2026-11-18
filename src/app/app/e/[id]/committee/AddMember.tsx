@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useT } from '@/components/I18n';
 import { Alert } from '@/components/Ui';
@@ -24,7 +24,7 @@ export function AddMember({ eventId }: { eventId: string }) {
         if (!r.ok) return setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
         setPhone('');
         setMsg({ kind: 'ok', text: t('com.added') });
-        router.refresh();
+        startTransition(() => router.refresh());
       }}
     >
       <h2 className="font-bold">{t('com.add')}</h2>

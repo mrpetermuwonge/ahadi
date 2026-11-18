@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useT } from './I18n';
 import { LOCALES, type Locale } from '@/i18n';
@@ -22,13 +22,13 @@ export function LangSwitcher({ className = '' }: { className?: string }) {
   return (
     <label className={`inline-flex items-center gap-2 text-sm ${className}`}>
       <span className="sr-only">{t('lang.label')}</span>
-      <svg aria-hidden width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></svg>
+      <svg aria-hidden width="18" height="18" className="hidden sm:block shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/></svg>
       <select
         className="bg-transparent font-medium py-2 pr-1 focus:outline-none focus:ring-2 focus:ring-brand rounded"
         value={locale}
         onChange={(e) => {
           document.cookie = `lang=${e.target.value};path=/;max-age=31536000;samesite=lax`;
-          router.refresh();
+          startTransition(() => router.refresh());
         }}
       >
         {(Object.keys(LOCALES) as Locale[]).map((l) => (

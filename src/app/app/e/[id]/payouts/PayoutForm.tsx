@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useT } from '@/components/I18n';
 import { Alert } from '@/components/Ui';
@@ -22,7 +22,7 @@ export function PayoutForm({ eventId, currency, max, accounts }: { eventId: stri
         setBusy(false);
         if (!r.ok) return setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
         setMsg({ kind: 'ok', text: t('po.requested') });
-        router.refresh();
+        startTransition(() => router.refresh());
       }}
     >
       <h2 className="font-bold">{t('po.title')}</h2>

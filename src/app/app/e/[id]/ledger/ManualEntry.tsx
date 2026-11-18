@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, startTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useT } from '@/components/I18n';
 import { Alert } from '@/components/Ui';
@@ -25,7 +25,7 @@ export function ManualEntry({ eventId, currency, pledges }: { eventId: string; c
         clear();
         setD({ pledgeId: '', amount: '', reason: '', receipt: '' });
         setMsg({ kind: 'ok', text: t('ledger.recorded') });
-        router.refresh();
+        startTransition(() => router.refresh());
       }}
     >
       <h2 className="font-bold">{t('ledger.manual')}</h2>
