@@ -191,6 +191,41 @@ export async function runRoleTests(BASE) {
     expect(!nav.includes('Revenue'), 'trust sees revenue');
   });
 
+  await test('export: each staff role only sees the data it may take', async (page) => {
+    const kinds = async () => page.locator('label:has(input[type=checkbox]) span.font-semibold').allInnerTexts();
+    await login(page, FINANCE);
+    await page.goto('/admin?tab=export');
+    let k = await kinds();
+    expect(k.includes('Pledges') && k.includes('Payments') && !k.includes('Accounts') && !k.includes('Audit log'), `finance: ${k}`);
+    await login(page, TRUST);
+    await page.goto('/admin?tab=export');
+    k = await kinds();
+    expect(k.includes('Events') && k.includes('Pledgers') && !k.includes('Payments'), `trust: ${k}`);
+    expect((await post(page, '/api/admin/export', { datasets: ['payments'], analytics: false, from: null, to: null, type: null, phones: false, format: 'xlsx' })) === 403, 'trust got payments');
+    await login(page, SUPPORT);
+    await page.goto('/admin');
+    const nav = await page.locator('nav a[href^="/admin?tab="]').allInnerTexts();
+    expect(!nav.includes('Export'), 'support sees Export');
+  });
+
+  await test('accounts: super admin can open and control any account; support cannot', async (page) => {
+    await login(page, SUPER);
+    await page.goto('/admin?tab=accounts&kind=organizers');
+    await page.locator('a[href*="tab=accounts&user="]').first().click();
+    await page.getByText('Manage this account').waitFor();
+    await login(page, SUPPORT);
+    await page.goto('/admin?tab=accounts');
+    await page.locator('a[href*="tab=accounts&user="]').first().click();
+    await page.getByText('Only super admins can change accounts').waitFor();
+    expect((await post(page, '/api/admin/account-suspend', { userId: 'x', reason: 'testing the rule here', freezeEvents: false })) === 403, 'support could suspend');
+  });
+
+  await test('homepage shows the partners strip', async (page) => {
+    await page.goto('/');
+    await page.locator('#partners-title').waitFor();
+    expect((await page.locator('.partners-track li').count()) >= 8, 'partners missing');
+  });
+
   await test('signed-out visitors cannot open admin or event dashboards', async (page) => {
     await page.goto('/admin');
     await page.waitForURL(/\/login/, { timeout: 15000 });

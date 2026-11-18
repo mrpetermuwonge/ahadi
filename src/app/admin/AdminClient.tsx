@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useT } from '@/components/I18n';
 import { Alert } from '@/components/Ui';
 import { apiSend } from '@/components/client-utils';
+import { compressImage, uploadFile } from '@/components/upload';
 
 /** One admin action. Sensitive ones ask for a fresh code first (handled by apiSend + the "Confirm it's you" dialog). */
 export function AdminButton({ action, body, label, primary }: { action: string; body: unknown; label: string; primary?: boolean }) {
@@ -227,5 +228,104 @@ export function OpsButton({ action, label }: { action: 'backup-now' | 'retention
       }}>{busy ? t('a.loading') : label}</button>
       {res && <span className="text-xs text-muted break-all max-w-md">{res}</span>}
     </span>
+  );
+}
+
+/** Super admin controls for one account: rename, sign out everywhere, suspend (optionally freezing their events) or reactivate. */
+export function AccountActions({ userId, name, suspended }: { userId: string; name: string; suspended: boolean }) {
+  const { t } = useT();
+  const router = useRouter();
+  const [newName, setNewName] = useState(name);
+  const [reason, setReason] = useState('');
+  const [freeze, setFreeze] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ kind: 'ok' | 'bad'; text: string } | null>(null);
+  const run = async (action: string, body: object, ok: string) => {
+    setBusy(true);
+    setMsg(null);
+    const r = await apiSend(`/api/admin/${action}`, { userId, ...body });
+    setBusy(false);
+    if (!r.ok) return r.error === 'step_up_cancelled' ? undefined : setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
+    setMsg({ kind: 'ok', text: ok });
+    router.refresh();
+  };
+  return (
+    <section className="card p-5 space-y-4">
+      <h3 className="font-bold">{t('ac.manage')}</h3>
+      <div className="flex flex-wrap gap-2 items-end">
+        <div className="flex-1 min-w-[200px]">
+          <label className="label" htmlFor="ac-name">{t('acct.name')}</label>
+          <input id="ac-name" className="input" maxLength={60} value={newName} onChange={(e) => setNewName(e.target.value)} />
+        </div>
+        <button type="button" className="btn-outline" disabled={busy || newName.trim() === name} onClick={() => run('account-rename', { name: newName }, t('ac.renamed'))}>{t('a.save')}</button>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className="btn-outline" disabled={busy} onClick={() => run('account-signout', {}, t('ac.signedOut'))}>{t('ac.signOut')}</button>
+        {suspended && <button type="button" className="btn-primary" disabled={busy} onClick={() => run('account-reactivate', {}, t('ac.reactivated'))}>{t('ac.reactivate')}</button>}
+      </div>
+      {!suspended && (
+        <div className="rounded-xl border-2 border-bad/30 p-3 space-y-2">
+          <p className="font-semibold text-bad">{t('ac.suspend')}</p>
+          <p className="text-xs text-muted">{t('ac.suspendHint')}</p>
+          <textarea className="input" rows={2} placeholder={t('ac.reason')} aria-label={t('ac.reason')} value={reason} onChange={(e) => setReason(e.target.value)} />
+          <label className="flex gap-2 items-center text-sm cursor-pointer">
+            <input type="checkbox" className="w-5 h-5" checked={freeze} onChange={(e) => setFreeze(e.target.checked)} />{t('ac.freezeToo')}
+          </label>
+          <button type="button" className="btn-outline text-bad" disabled={busy || reason.trim().length < 10}
+            onClick={() => window.confirm(t('ac.suspendConfirm')) && run('account-suspend', { reason, freezeEvents: freeze }, t('ac.suspendedDone'))}>{t('ac.suspend')}</button>
+        </div>
+      )}
+      {msg && <Alert kind={msg.kind}>{msg.text}</Alert>}
+    </section>
+  );
+}
+
+/** Add a partner to the homepage strip: name, short line, website and an optional logo. */
+export function PartnerForm() {
+  const { t } = useT();
+  const router = useRouter();
+  const [name, setName] = useState('');
+  const [tagline, setTagline] = useState('');
+  const [url, setUrl] = useState('');
+  const [logoId, setLogoId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ kind: 'ok' | 'bad'; text: string } | null>(null);
+  return (
+    <form className="card p-5 space-y-3" onSubmit={async (e) => {
+      e.preventDefault();
+      setBusy(true);
+      setMsg(null);
+      const r = await apiSend('/api/admin/partner-add', { name, tagline: tagline || null, url: url || null, logoFileId: logoId });
+      setBusy(false);
+      if (!r.ok) return setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
+      setName(''); setTagline(''); setUrl(''); setLogoId(null);
+      setMsg({ kind: 'ok', text: t('pt.added') });
+      router.refresh();
+    }}>
+      <h3 className="font-bold">{t('pt.add')}</h3>
+      <div className="grid sm:grid-cols-3 gap-3">
+        <div><label className="label" htmlFor="pt-name">{t('pt.name')}</label><input id="pt-name" className="input" maxLength={60} value={name} onChange={(e) => setName(e.target.value)} /></div>
+        <div><label className="label" htmlFor="pt-tag">{t('pt.tagline')}</label><input id="pt-tag" className="input" maxLength={60} value={tagline} onChange={(e) => setTagline(e.target.value)} /></div>
+        <div><label className="label" htmlFor="pt-url">{t('pt.url')}</label><input id="pt-url" className="input" type="url" placeholder="https://" value={url} onChange={(e) => setUrl(e.target.value)} /></div>
+      </div>
+      <div className="flex items-center gap-3">
+        {logoId && <img src={`/api/files/${logoId}`} alt="" className="w-12 h-12 rounded-lg object-contain border border-line bg-white" />}
+        <label className="btn-outline cursor-pointer">
+          {logoId ? t('wiz.coverChange') : t('pt.logo')}
+          <input type="file" accept="image/*" className="sr-only" onChange={async (e) => {
+            const f = e.target.files?.[0];
+            if (!f) return;
+            setBusy(true);
+            const up = await uploadFile(await compressImage(f, 400, 0.85), 'cover');
+            setBusy(false);
+            if (!up.ok) setMsg({ kind: 'bad', text: t(`err.${up.error}` as any) });
+            else setLogoId(up.id);
+          }} />
+        </label>
+        <span className="text-xs text-muted">{t('pt.logoHint')}</span>
+      </div>
+      {msg && <Alert kind={msg.kind}>{msg.text}</Alert>}
+      <button className="btn-primary" disabled={busy || name.trim().length < 2}>{busy ? t('a.loading') : t('pt.addButton')}</button>
+    </form>
   );
 }

@@ -9,6 +9,8 @@ import { changeSettings, decideProposal, setAdminRole } from '@/lib/services/adm
 import { refundPayment } from '@/lib/services/payments';
 import { erasePledgerByPhone } from '@/lib/services/pledges';
 import { runBackup, runRetention } from '@/lib/services/ops';
+import { reactivateAccount, renameAccount, signOutEverywhere, suspendAccount } from '@/lib/services/accounts';
+import { addPartner, deletePartner, updatePartner } from '@/lib/services/partners';
 import type { AdminPermission, AdminRole } from '@/lib/adminPermissions';
 import { api, apiAdmin, jsonError, requireStepUp } from '@/lib/web';
 
@@ -33,8 +35,15 @@ const NEEDS: Record<string, AdminPermission> = {
   'erase-pledger': 'privacy.erase',
   'backup-now': 'ops.run',
   'retention-now': 'ops.run',
+  'account-suspend': 'accounts.manage',
+  'account-reactivate': 'accounts.manage',
+  'account-signout': 'accounts.manage',
+  'account-rename': 'accounts.manage',
+  'partner-add': 'partners.manage',
+  'partner-update': 'partners.manage',
+  'partner-delete': 'partners.manage',
 };
-const STEP_UP = new Set(['payout-review', 'settings', 'setting-decide', 'team-set', 'reassign-owner', 'refund', 'erase-pledger']);
+const STEP_UP = new Set(['payout-review', 'settings', 'setting-decide', 'team-set', 'reassign-owner', 'refund', 'erase-pledger', 'account-suspend', 'account-reactivate', 'account-signout']);
 
 export const POST = api(async (req, { params }: { params: { action: string } }) => {
   const perm = NEEDS[params.action];
@@ -141,6 +150,39 @@ export const POST = api(async (req, { params }: { params: { action: string } }) 
       const r = await runRetention(db);
       await log('admin.retention', 'ops', 'retention', r);
       return NextResponse.json(r);
+    }
+    case 'account-suspend': {
+      const b = z.object({ userId: z.string().max(40), reason: z.string().max(300), freezeEvents: z.boolean() }).parse(body);
+      await suspendAccount(db, user.id, b.userId, b.reason, b.freezeEvents);
+      break;
+    }
+    case 'account-reactivate': {
+      const b = z.object({ userId: z.string().max(40) }).parse(body);
+      await reactivateAccount(db, user.id, b.userId);
+      break;
+    }
+    case 'account-signout': {
+      const b = z.object({ userId: z.string().max(40) }).parse(body);
+      return NextResponse.json({ sessions: await signOutEverywhere(db, user.id, b.userId) });
+    }
+    case 'account-rename': {
+      const b = z.object({ userId: z.string().max(40), name: z.string().max(60) }).parse(body);
+      await renameAccount(db, user.id, b.userId, b.name);
+      break;
+    }
+    case 'partner-add': {
+      const b = z.object({ name: z.string().max(60), tagline: z.string().max(60).nullable(), url: z.string().max(300).nullable(), logoFileId: z.string().max(40).nullable() }).parse(body);
+      return NextResponse.json({ id: await addPartner(db, user.id, b) });
+    }
+    case 'partner-update': {
+      const b = z.object({ id: z.string().max(40), active: z.boolean().optional(), move: z.enum(['up', 'down']).optional() }).parse(body);
+      await updatePartner(db, user.id, b.id, b);
+      break;
+    }
+    case 'partner-delete': {
+      const b = z.object({ id: z.string().max(40) }).parse(body);
+      await deletePartner(db, user.id, b.id);
+      break;
     }
     default:
       return jsonError('not_found', 404);

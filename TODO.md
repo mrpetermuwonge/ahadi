@@ -41,6 +41,9 @@ These items were left for later on purpose (15 Nov 2026; items 6–7 added 17 No
 ## 6b. Replace the demo staff
 - [ ] Add real staff numbers in Admin → Team (at least two Super admins), then remove the demo numbers 0700 000 001–005 and take `0700000001` out of `ADMIN_PHONES`.
 
+## 6c. Replace the demo partners
+- [ ] In Admin → Partners, delete the 8 demo partners (made-up names) and add real partners with their permission and logos.
+
 ## 7. Data protection (Uganda Data Protection and Privacy Act, 2019)
 - [ ] Register Ahadi with the Personal Data Protection Office (PDPO) as a data collector/processor.
 - [ ] Name a data protection officer and a contact address for privacy requests (shown in the privacy policy).

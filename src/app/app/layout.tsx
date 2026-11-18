@@ -18,7 +18,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // "My pledges" opens the pledger portal for this account's number (a plain link: it starts a short portal visit).
   const nav: { href: string; label: string; d: string; plain?: boolean }[] = [
     { href: '/app', label: t('nav.events'), d: 'M4 6h16M4 12h16M4 18h10' },
-    { href: '/app/new', label: t('nav.new'), d: 'M12 5v14M5 12h14' },
+    // No "New event" here: My events has its own "+ New event" button, so the menu stays short.
     { href: '/api/pledger/from-account', label: t('nav.myPledges'), d: 'M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.6-7 10-7 10z', plain: true },
     ...(user.is_admin ? [{ href: '/admin', label: t('nav.admin'), d: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z' }] : []),
   ];

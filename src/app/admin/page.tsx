@@ -10,7 +10,11 @@ import { getSettings, DEFAULT_SETTINGS } from '@/lib/settings';
 import { Logo } from '@/components/Brand';
 import { LangSwitcher } from '@/components/Ui';
 import { LogoutButton } from '@/app/app/LogoutButton';
-import { AdminButton, SettingsEditor, RunJobs, TeamForm, ReassignOwner, EraseForm, OpsButton } from './AdminClient';
+import { AdminButton, SettingsEditor, RunJobs, TeamForm, ReassignOwner, EraseForm, OpsButton, AccountActions, PartnerForm } from './AdminClient';
+import { ExportForm } from './ExportForm';
+import { accountDetail, listAccounts, type AccountKind } from '@/lib/services/accounts';
+import { allPartners } from '@/lib/services/partners';
+import { ANALYTICS_ROLES, PHONE_ROLES, datasetsFor } from '@/lib/services/adminExport';
 import { backupDir, health, opsRuns, BACKUP_KEEP } from '@/lib/services/ops';
 import { PRIVACY_VERSION, RETENTION } from '@/lib/privacy';
 import { Alert } from '@/components/Ui';
@@ -23,27 +27,30 @@ import type { Key } from '@/i18n';
 export const metadata = { title: 'Admin', robots: { index: false } };
 
 type Perms = Record<AdminPermission, boolean>;
-const TABS = ['overview', 'events', 'payments', 'flags', 'payouts', 'verifications', 'revenue', 'settings', 'recon', 'privacy', 'system', 'audit', 'team'] as const;
+const TABS = ['overview', 'accounts', 'events', 'payments', 'flags', 'payouts', 'verifications', 'revenue', 'export', 'partners', 'settings', 'recon', 'privacy', 'system', 'audit', 'team'] as const;
 type Tab = (typeof TABS)[number];
 const TAB_KEY: Record<Tab, Key> = {
   overview: 'ax.overview', events: 'adm.events', flags: 'adm.flags', payouts: 'adm.payouts', verifications: 'adm.verifications',
   revenue: 'adm.revenue', settings: 'adm.settings', recon: 'adm.recon', audit: 'adm.audit', team: 'ax.team',
   payments: 'ax.payments', privacy: 'ax.privacy', system: 'ax.system',
+  accounts: 'ac.tab', export: 'xp.tab', partners: 'pt.tab',
 };
 /** Which permission lets a staff member open each tab. */
 const TAB_PERM: Record<Tab, AdminPermission> = {
   overview: 'admin.view', events: 'admin.view', flags: 'admin.view', payouts: 'payouts.view', verifications: 'admin.view',
   revenue: 'revenue.view', settings: 'admin.view', recon: 'admin.view', audit: 'audit.view', team: 'admin.view',
   payments: 'payments.view', privacy: 'admin.view', system: 'ops.view',
+  accounts: 'accounts.view', export: 'admin.view', partners: 'admin.view',
 };
 const PERIODS = [7, 30, 90, 365];
 
-export default async function AdminPage({ searchParams }: { searchParams: { tab?: string; days?: string; q?: string; pq?: string } }) {
+export default async function AdminPage({ searchParams }: { searchParams: { tab?: string; days?: string; q?: string; pq?: string; aq?: string; kind?: string; user?: string } }) {
   const user = await requireAdmin();
   const { t } = getT();
   const perms = adminPermissionsFor(user);
   const role = adminRoleOf(user)!;
-  const allowed = TABS.filter((x) => perms[TAB_PERM[x]]);
+  // Export only appears for roles that may take at least one kind of data.
+  const allowed = TABS.filter((x) => perms[TAB_PERM[x]] && (x !== 'export' || datasetsFor(role).length > 0));
   const tab: Tab = (allowed as readonly string[]).includes(searchParams.tab ?? '') ? (searchParams.tab as Tab) : 'overview';
   const days = PERIODS.includes(Number(searchParams.days)) ? Number(searchParams.days) : 30;
   return (
@@ -90,6 +97,9 @@ export default async function AdminPage({ searchParams }: { searchParams: { tab?
         {tab === 'payments' && <PaymentsTab perms={perms} q={searchParams.pq ?? ''} />}
         {tab === 'privacy' && <PrivacyTab perms={perms} />}
         {tab === 'system' && <SystemTab perms={perms} />}
+        {tab === 'accounts' && (searchParams.user ? <AccountTab perms={perms} userId={searchParams.user} me={user.id} /> : <AccountsTab q={searchParams.aq ?? ''} kind={(searchParams.kind as AccountKind) ?? 'all'} />)}
+        {tab === 'export' && <ExportForm datasets={datasetsFor(role)} analytics={ANALYTICS_ROLES.includes(role)} phonesAllowed={PHONE_ROLES.includes(role)} />}
+        {tab === 'partners' && <PartnersTab perms={perms} />}
       </main>
     </div>
   );
@@ -141,7 +151,10 @@ async function OverviewTab({ days, perms }: { days: number; perms: Perms }) {
               className={`btn min-h-[36px] px-3 text-sm ${p === days ? 'bg-brand text-white' : 'btn-outline'}`}>{t('ax.days', { n: p })}</Link>
           ))}
         </div>
-        {perms['analytics.export'] && <a className="btn-outline min-h-[36px] px-3 text-sm" href={`/api/admin/analytics?days=${days}`}>{t('ax.exportCsv')}</a>}
+        <div className="flex gap-2">
+          {perms['analytics.export'] && <a className="btn-outline min-h-[36px] px-3 text-sm" href={`/api/admin/analytics?days=${days}`}>{t('ax.exportCsv')}</a>}
+          <Link className="btn-outline min-h-[36px] px-3 text-sm" href="/admin?tab=export">{t('xp.more')}</Link>
+        </div>
       </div>
 
       {/* Work waiting for the team */}
@@ -749,6 +762,155 @@ async function SystemTab({ perms }: { perms: Perms }) {
           </table>
         )}
       </section>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ Accounts, partners */
+
+const KINDS: AccountKind[] = ['all', 'organizers', 'committee', 'staff', 'suspended'];
+
+async function AccountsTab({ q, kind }: { q: string; kind: AccountKind }) {
+  const { t } = getT();
+  const k = KINDS.includes(kind) ? kind : 'all';
+  const rows = await listAccounts(await getDb(), { q, kind: k });
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-muted">{t('ac.hint')}</p>
+      <form className="flex gap-2" action="/admin">
+        <input type="hidden" name="tab" value="accounts" />
+        <input type="hidden" name="kind" value={k} />
+        <input name="aq" defaultValue={q} className="input" placeholder={t('ac.search')} aria-label={t('ac.search')} />
+        <button className="btn-outline px-4">{t('ax.find')}</button>
+      </form>
+      <div className="flex flex-wrap gap-1">
+        {KINDS.map((x) => (
+          <Link key={x} href={`/admin?tab=accounts&kind=${x}${q ? `&aq=${encodeURIComponent(q)}` : ''}`} aria-current={x === k ? 'true' : undefined}
+            className={`chip min-h-[32px] px-3 text-sm ${x === k ? 'bg-brand text-white' : 'bg-card border border-line text-ink'}`}>{t(`ac.kind.${x}` as Key)}</Link>
+        ))}
+      </div>
+      {rows.length === 0 ? <Empty /> : (
+        <div className="card overflow-x-auto">
+          <table className="w-full text-sm min-w-[760px]">
+            <thead><tr className="text-left text-muted border-b border-line">
+              <th className="p-3">{t('acct.name')}</th><th className="p-3">{t('ac.login')}</th><th className="p-3">{t('ac.roles')}</th>
+              <th className="p-3">{t('ac.joined')}</th><th className="p-3">{t('ac.status')}</th>
+            </tr></thead>
+            <tbody>
+              {rows.map((u) => (
+                <tr key={u.id} className="border-b border-line/60 align-top">
+                  <td className="p-3"><Link className="font-semibold underline" href={`/admin?tab=accounts&user=${u.id}`}>{u.name ?? t('ac.noName')}</Link></td>
+                  <td className="p-3">{u.phone ? formatPhone(u.phone) : u.email}</td>
+                  <td className="p-3 text-xs">
+                    {u.admin_role && <span className="chip bg-accent/25 text-ink mr-1">{t(`ax.role.${u.admin_role}` as Key)}</span>}
+                    {u.owns > 0 && <span className="chip bg-brand-soft text-brand mr-1">{t('ac.organizesN', { n: u.owns })}</span>}
+                    {u.committee > 0 && <span className="chip bg-line text-ink">{t('ac.committeeN', { n: u.committee })}</span>}
+                  </td>
+                  <td className="p-3 whitespace-nowrap">{new Date(u.created_at).toISOString().slice(0, 10)}</td>
+                  <td className="p-3">{u.suspended_at ? <span className="chip bg-bad/15 text-bad">{t('ac.suspended')}</span> : <span className="text-ok text-xs font-semibold">{t('ac.active')}</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+async function AccountTab({ perms, userId, me }: { perms: Perms; userId: string; me: string }) {
+  const { t } = getT();
+  const d = await accountDetail(await getDb(), userId);
+  if (!d) return <Empty />;
+  const u = d.user;
+  return (
+    <div className="space-y-4">
+      <Link href="/admin?tab=accounts" className="text-sm font-semibold text-brand">← {t('ac.back')}</Link>
+      <section className="card p-5">
+        <div className="flex flex-wrap justify-between gap-2">
+          <div>
+            <h2 className="text-xl font-bold">{u.name ?? t('ac.noName')}</h2>
+            <p className="text-sm text-muted">{u.phone ? formatPhone(u.phone) : ''}{u.phone && u.email ? ' · ' : ''}{u.email ?? ''}</p>
+          </div>
+          <div className="text-right text-sm">
+            {u.suspended_at ? <span className="chip bg-bad/15 text-bad">{t('ac.suspended')}</span> : <span className="chip bg-ok/15 text-ok">{t('ac.active')}</span>}
+            {u.admin_role && <p className="mt-1"><span className="chip bg-accent/25 text-ink">{t(`ax.role.${u.admin_role}` as Key)}</span></p>}
+          </div>
+        </div>
+        <dl className="grid sm:grid-cols-4 gap-3 mt-4 text-sm">
+          <div><dt className="text-muted">{t('ac.joined')}</dt><dd className="font-semibold">{new Date(u.created_at).toISOString().slice(0, 10)}</dd></div>
+          <div><dt className="text-muted">{t('ac.lastLogin')}</dt><dd className="font-semibold">{u.last_login ? new Date(u.last_login).toISOString().slice(0, 16).replace('T', ' ') : '—'}</dd></div>
+          <div><dt className="text-muted">{t('ac.sessions')}</dt><dd className="font-semibold">{u.active_sessions}</dd></div>
+          <div><dt className="text-muted">{t('ac.terms')}</dt><dd className="font-semibold">{u.terms_version ?? '—'}</dd></div>
+        </dl>
+        {u.suspended_at && (
+          <p className="mt-3 text-sm rounded-xl bg-bad/10 p-3">{t('ac.suspendedInfo', { d: new Date(u.suspended_at).toISOString().slice(0, 10), by: u.suspended_by_name ?? '—', r: u.suspended_reason ?? '' })}</p>
+        )}
+      </section>
+      <section className="card p-5">
+        <h3 className="font-bold">{t('ac.events')}</h3>
+        {d.events.length === 0 ? <p className="text-muted text-sm mt-1">{t('adm.none')}</p> : (
+          <ul className="mt-2 divide-y divide-line text-sm">
+            {d.events.map((e) => (
+              <li key={e.id} className="py-2 flex justify-between gap-2">
+                <Link className="underline font-semibold" href={`/app/e/${e.id}`}>{e.title}</Link>
+                <span className="text-muted">{t(`role.${e.role}` as Key)}{e.frozen ? ` · ${t('adm.freeze')}` : ''}{e.status !== 'active' ? ` · ${t('dash.tab.closed')}` : ''}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <h3 className="font-bold mt-4">{t('ac.payoutTo')}</h3>
+        {d.payoutAccounts.length === 0 ? <p className="text-muted text-sm mt-1">{t('adm.none')}</p> : (
+          <ul className="text-sm mt-1">{d.payoutAccounts.map((a, i) => <li key={i}>{a.kind === 'bank' ? `${a.bank_name} ${a.account_no}` : formatPhone(a.phone)} {a.verified ? '✓' : ''}</li>)}</ul>
+        )}
+      </section>
+      {perms['accounts.manage'] && u.id !== me && <AccountActions userId={u.id} name={u.name ?? ''} suspended={!!u.suspended_at} />}
+      {u.id === me && <Alert kind="info">{t('ac.self')}</Alert>}
+      {!perms['accounts.manage'] && <Alert kind="info">{t('ac.readOnly')}</Alert>}
+      <section className="card p-5">
+        <h3 className="font-bold">{t('ac.activity')}</h3>
+        {d.activity.length === 0 ? <p className="text-muted text-sm mt-1">{t('adm.none')}</p> : (
+          <table className="w-full text-xs mt-2"><tbody>{d.activity.map((a, i) => (
+            <tr key={i} className="border-t border-line"><td className="py-1 pr-3 whitespace-nowrap">{new Date(a.created_at).toISOString().slice(0, 16).replace('T', ' ')}</td><td className="pr-3 font-semibold">{a.action}</td><td>{a.entity_type}:{a.entity_id}</td></tr>
+          ))}</tbody></table>
+        )}
+      </section>
+    </div>
+  );
+}
+
+async function PartnersTab({ perms }: { perms: Perms }) {
+  const { t } = getT();
+  const rows = await allPartners(await getDb());
+  const can = perms['partners.manage'];
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted">{t('pt.hint')}</p>
+      {rows.some((p) => p.demo) && <Alert kind="warn">{t('pt.demoWarn')}</Alert>}
+      <section className="card divide-y divide-line">
+        {rows.length === 0 ? <p className="p-5 text-muted">{t('adm.none')}</p> : rows.map((p, i) => (
+          <div key={p.id} className="p-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              {p.logo_file_id
+                ? <img src={`/api/files/${p.logo_file_id}`} alt="" className="w-10 h-10 rounded-lg object-contain bg-white border border-line" />
+                : <span className="w-10 h-10 rounded-lg bg-brand-soft text-brand font-bold flex items-center justify-center">{p.name.split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase()}</span>}
+              <div className="min-w-0">
+                <p className="font-semibold truncate">{p.name} {p.demo && <span className="chip bg-accent/25 text-ink text-[10px]">{t('pt.demo')}</span>} {!p.active && <span className="chip bg-line text-muted text-[10px]">{t('pt.hidden')}</span>}</p>
+                <p className="text-xs text-muted truncate">{p.tagline ?? ''}{p.url ? ` · ${p.url}` : ''}</p>
+              </div>
+            </div>
+            {can && (
+              <div className="flex flex-wrap gap-1">
+                {i > 0 && <AdminButton action="partner-update" body={{ id: p.id, move: 'up' }} label="↑" />}
+                {i < rows.length - 1 && <AdminButton action="partner-update" body={{ id: p.id, move: 'down' }} label="↓" />}
+                <AdminButton action="partner-update" body={{ id: p.id, active: !p.active }} label={p.active ? t('pt.hide') : t('pt.show')} />
+                <AdminButton action="partner-delete" body={{ id: p.id }} label={t('pt.delete')} />
+              </div>
+            )}
+          </div>
+        ))}
+      </section>
+      {can && <PartnerForm />}
     </div>
   );
 }

@@ -2,7 +2,8 @@
  * Ahadi staff roles and what each may do in the Admin panel. ONE table, used by admin pages, tabs, buttons
  * and the admin API (which always checks again).
  *
- *  - super    Everything, including the admin team, global settings and account recovery.
+ *  - super    Everything, including every account on Ahadi (suspend, sign out, rename), the admin team,
+ *             global settings and account recovery.
  *  - finance  Money: withdrawals review, refunds, reconciliation, revenue, running the payment jobs.
  *  - trust    Safety: reports, freezing events, document verification, verified badge, homepage approvals,
  *             erasing a person's data on request.
@@ -35,7 +36,10 @@ export type AdminPermission =
   | 'payments.refund'
   | 'privacy.erase'
   | 'ops.view'
-  | 'ops.run';
+  | 'ops.run'
+  | 'accounts.view'
+  | 'accounts.manage'
+  | 'partners.manage';
 
 const MATRIX: Record<AdminPermission, readonly AdminRole[]> = {
   'admin.view': ['super', 'finance', 'trust', 'support'],
@@ -60,6 +64,9 @@ const MATRIX: Record<AdminPermission, readonly AdminRole[]> = {
   'privacy.erase': ['super', 'trust'],
   'ops.view': ['super', 'finance', 'trust', 'support'],
   'ops.run': ['super'],
+  'accounts.view': ['super', 'finance', 'trust', 'support'],
+  'accounts.manage': ['super'],
+  'partners.manage': ['super', 'trust'],
 };
 
 /** Settings that move money or change what people pay: changing them needs a second super admin. */

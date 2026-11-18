@@ -883,7 +883,9 @@ describe('production readiness (v1.22)', () => {
     const { health } = await import('@/lib/services/ops');
     const h = await health(db);
     expect(h.ok).toBe(true);
-    expect(h.schema).toBe('011_privacy_ops.sql');
+    const fs = await import('node:fs');
+    const latest = fs.readdirSync('db/migrations').filter((f: string) => f.endsWith('.sql')).sort().pop();
+    expect(h.schema).toBe(latest);
   });
 });
 
@@ -905,5 +907,68 @@ describe('staff conflicts of interest (v1.23)', () => {
        SELECT $1, $2, a.id, 1000, 'UGX', 'in_review', $3 FROM payout_accounts a WHERE a.user_id=$3 RETURNING *`, [newId('po'), e.id, owner.id]);
     await expect(adminReview(db, po.id, staff.id, true, 'ok')).rejects.toThrow('conflict_of_interest');
     await expect(adminReassignOwner(db, e.id, staff.id, '0700000802', 'Taking over the event myself')).rejects.toMatchObject({ code: 'conflict_of_interest' });
+  });
+});
+
+describe('accounts, export and partners (v1.24)', () => {
+  it('a suspended account is logged out and cannot log in; reactivation restores it', async () => {
+    const { suspendAccount, reactivateAccount } = await import('@/lib/services/accounts');
+    const { createSession } = await import('@/lib/services/auth');
+    const sup = await mkUser('+256700000901', true);
+    await db.query(`UPDATE users SET admin_role='super' WHERE id=$1`, [sup.id]);
+    const org = await mkUser('+256700000902');
+    const e = await mkEvent(org);
+    const token = await createSession(db, org.id);
+    expect(await userFromToken(db, token)).toBeTruthy();
+    await expect(suspendAccount(db, sup.id, org.id, 'short', false)).rejects.toMatchObject({ code: 'reason_required' });
+    await suspendAccount(db, sup.id, org.id, 'Fake hospital appeal reported by family', true);
+    expect(await userFromToken(db, token)).toBeNull();
+    await expect(createSession(db, org.id)).rejects.toMatchObject({ code: 'account_suspended' });
+    const [ev] = await db.query(`SELECT frozen FROM events WHERE id=$1`, [e.id]);
+    expect(ev.frozen).toBe(true);
+    await reactivateAccount(db, sup.id, org.id);
+    expect(await userFromToken(db, await createSession(db, org.id))).toBeTruthy();
+    await expect(suspendAccount(db, sup.id, sup.id, 'Suspending myself for a test', false)).rejects.toMatchObject({ code: 'cannot_change_self' });
+  });
+
+  it('the last active super admin cannot be suspended', async () => {
+    const { suspendAccount } = await import('@/lib/services/accounts');
+    const a = await mkUser('+256700000903', true);
+    const x = await mkUser('+256700000904', true);
+    const other = await mkUser('+256700000905', true);
+    await db.query(`UPDATE users SET admin_role='super' WHERE id IN ($1,$2)`, [a.id, x.id]);
+    await suspendAccount(db, a.id, x.id, 'Left the company this week', false); // a is still a super admin
+    await expect(suspendAccount(db, other.id, a.id, 'Trying to remove the last one', false)).rejects.toMatchObject({ code: 'last_super_admin' });
+  });
+
+  it('exports respect roles and hide phone numbers unless allowed', async () => {
+    const { buildExport, datasetsFor } = await import('@/lib/services/adminExport');
+    const owner = await mkUser('+256700000906');
+    const e = await mkEvent(owner);
+    await pledge(e.id, '0772111906', 25000);
+    expect(datasetsFor('support')).toEqual([]);
+    expect(datasetsFor('trust')).not.toContain('payments');
+    expect(datasetsFor('finance')).toContain('pledges');
+    const f = { from: null, to: null, type: null, phones: false };
+    const masked = await buildExport(db, ['pledges'], f, 'finance');
+    expect(String(masked.sheets[0]!.rows[0]!.phone)).toContain('***');
+    const full = await buildExport(db, ['pledges'], { ...f, phones: true }, 'finance');
+    expect(full.sheets[0]!.rows[0]!.phone).toBe('+256772111906');
+    const trustTry = await buildExport(db, ['pledges', 'events'], { ...f, phones: true }, 'trust');
+    expect(trustTry.sheets.map((s) => s.key)).toEqual(['events']); // pledges not allowed for trust
+    expect(String(trustTry.sheets[0]!.rows[0]!.organizer_phone)).toContain('***'); // trust never gets full numbers
+    const typed = await buildExport(db, ['events'], { ...f, type: 'funeral' }, 'super');
+    expect(typed.sheets[0]!.rows.length).toBe(0);
+  });
+
+  it('partners: only https links, demo partners seeded, order can change', async () => {
+    const { addPartner, publicPartners, updatePartner } = await import('@/lib/services/partners');
+    const admin = await mkUser('+256700000907', true);
+    expect((await publicPartners(db)).length).toBe(8);
+    await expect(addPartner(db, admin.id, { name: 'Bad Link', url: 'javascript:alert(1)' })).rejects.toMatchObject({ code: 'invalid_url' });
+    const id = await addPartner(db, admin.id, { name: 'Real Partner', url: 'https://example.org' });
+    await updatePartner(db, admin.id, id, { move: 'up' });
+    await updatePartner(db, admin.id, id, { active: false });
+    expect((await publicPartners(db)).some((p) => p.id === id)).toBe(false);
   });
 });

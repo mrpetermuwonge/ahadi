@@ -163,7 +163,9 @@ async function ensurePhonePayoutAccount(db: Db, userId: string, phone: string) {
 
 export async function createSession(db: Db, userId: string): Promise<string> {
   const token = randomId(40);
-  const [u] = await db.query<{ is_admin: boolean }>('SELECT is_admin FROM users WHERE id=$1', [userId]);
+  const [u] = await db.query<{ is_admin: boolean; suspended_at: string | null }>('SELECT is_admin, suspended_at FROM users WHERE id=$1', [userId]);
+  // A suspended account (Admin → Accounts) can never start a session, whichever way it logs in.
+  if (u?.suspended_at) throw new AuthError('account_suspended');
   const life = u?.is_admin ? `${ADMIN_SESSION_HOURS} hours` : `${SESSION_DAYS} days`;
   await db.query(`INSERT INTO sessions(token_hash, user_id, expires_at) VALUES ($1,$2, now() + interval '${life}')`, [sha256(token), userId]);
   return token;
@@ -269,7 +271,7 @@ const EMAIL_NOTE: Record<string, string> = {
 export async function userFromToken(db: Db, token: string | undefined | null) {
   if (!token) return null;
   const [u] = await db.query(
-    `SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at > now()`,
+    `SELECT u.* FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at > now() AND u.suspended_at IS NULL`,
     [sha256(token)],
   );
   return u ?? null;

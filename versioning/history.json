@@ -309,5 +309,19 @@
       "New rule (conflict of interest): Ahadi staff cannot review a withdrawal, refund a payment or take over an event where they are themselves on the committee or asked for it. Another staff member must do it.",
       "Browser tests now also cover the Finance and Trust & safety admins (12 checks, all pass). 1 new unit test (66 in total)."
     ]
+  },
+  {
+    "version": "1.24",
+    "date": "18 Nov 2026",
+    "title": "Choose-what-you-need data export, super admin control of all accounts, partners strip",
+    "code_saved": true,
+    "changes": [
+      "Removed \"New event\" from the organizer menu (top bar and phone bottom bar). The \"+ New event\" button on My events stays.",
+      "Admin → Export: staff tick the kinds of data they need (events, pledges, payments, withdrawals, refunds, Ahadi revenue, accounts, pledgers, messages, reports, audit log, analytics summary), choose a date range, an event type, Excel (one sheet per kind, plus an \"About this export\" sheet) or CSV (one kind). Each kind is limited to the staff roles allowed to see it; phone numbers are hidden unless a Super admin or Finance asks for them; files with personal data need a fresh code; every export is recorded in the audit log.",
+      "Admin → Accounts: every account on Ahadi (organizers, committee members, staff), with search and filters (organizers, committee, staff, suspended). Each account page shows its events and roles, withdrawal destinations, logins and recent actions. Super admins can rename, sign out on all devices, suspend (optionally freezing their events) and reactivate, with a reason and a fresh code. A suspended account is logged out at once and cannot log in any way. Never your own account; never the last active super admin. Other staff see accounts read-only.",
+      "Homepage: a small sliding \"Our partners\" strip (pauses on hover; still and swipeable for people who prefer less motion). Eight demo partners with made-up names are included.",
+      "Admin → Partners (Super admin, Trust & safety): add partners with a short line, https website and logo; show/hide, reorder, delete. Demo partners are marked so they can be replaced before launch.",
+      "Database change: migration 012 (account suspension, partners). 4 new unit tests (70 in total); browser tests now 15 (export per role, accounts, partners strip)."
+    ]
   }
 ]

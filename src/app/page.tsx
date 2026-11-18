@@ -6,6 +6,8 @@ import { currentUser } from '@/lib/web';
 import type { Key } from '@/i18n';
 import { Footer } from '@/components/Footer';
 import { FeaturedEvents } from '@/components/FeaturedEvents';
+import { PartnersStrip } from '@/components/PartnersStrip';
+import { publicPartners } from '@/lib/services/partners';
 import { EndPledgerSession } from '@/components/PledgerAccess';
 import { featuredEvents } from '@/lib/services/events';
 import { getDb } from '@/lib/db';
@@ -16,7 +18,9 @@ export default async function Landing() {
   const { t } = getT();
   const user = await currentUser();
   // Events whose owners chose to be shown here (and Ahadi approved). Hidden entirely when there are none.
-  const events = await featuredEvents(await getDb());
+  const db = await getDb();
+  const events = await featuredEvents(db);
+  const partners = (await publicPartners(db)).map((p) => ({ id: p.id, name: p.name, tagline: p.tagline, url: p.url, logoFileId: p.logo_file_id }));
   // Public cards carry no money amounts: only the date and how many people support the event.
   const slides = events.map((e) => ({ ...e, dateText: e.eventDate ? formatDate(e.eventDate) : null }));
   // Hero card: the featured celebration with the most supporters (uplifting first impression), else any featured event.
@@ -121,6 +125,8 @@ export default async function Landing() {
             ))}
           </ul>
         </section>
+
+        <PartnersStrip partners={partners} />
       </main>
       <Footer />
     </div>

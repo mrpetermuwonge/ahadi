@@ -1,20 +1,33 @@
-# Ahadi v1.23 – Changes
+# Ahadi v1.24 – Changes
 
-*17 Nov 2026 · Demo staff accounts for every admin role, and conflict-of-interest rules*
+*18 Nov 2026 · Choose-what-you-need data export, super admin control of all accounts, partners strip*
 
-## Latest changes in this version (v1.23)
+## Latest changes in this version (v1.24)
 
-- Demo Ahadi staff, one per admin role: 0700 000 001 Ahadi Admin and 0700 000 002 Grace Namuli (Super admins), 0700 000 003 Daniel Okello (Finance), 0700 000 004 Joan Akello (Trust & safety), 0700 000 005 Brian Ssali (Support). Added to the running app and to the demo seed.
-- With two super admins, the two-person rule for money settings (fees, prices, limits) can now be tested: one proposes, the other approves.
-- Each role was checked as that person: tabs, buttons on every tab, and every admin action against the server. Super: 13 tabs, all 16 actions. Finance: refunds, withdrawal reviews, reconciliation, payment jobs, analytics export. Trust & safety: freeze, verify, homepage, reports, documents, erasure (no Revenue tab). Support: read-only, every action refused.
-- New rule (conflict of interest): Ahadi staff cannot review a withdrawal, refund a payment or take over an event where they are themselves on the committee or asked for it. Another staff member must do it.
-- Browser tests now also cover the Finance and Trust & safety admins (12 checks, all pass). 1 new unit test (66 in total).
+- Removed "New event" from the organizer menu (top bar and phone bottom bar). The "+ New event" button on My events stays.
+- Admin → Export: staff tick the kinds of data they need (events, pledges, payments, withdrawals, refunds, Ahadi revenue, accounts, pledgers, messages, reports, audit log, analytics summary), choose a date range, an event type, Excel (one sheet per kind, plus an "About this export" sheet) or CSV (one kind). Each kind is limited to the staff roles allowed to see it; phone numbers are hidden unless a Super admin or Finance asks for them; files with personal data need a fresh code; every export is recorded in the audit log.
+- Admin → Accounts: every account on Ahadi (organizers, committee members, staff), with search and filters (organizers, committee, staff, suspended). Each account page shows its events and roles, withdrawal destinations, logins and recent actions. Super admins can rename, sign out on all devices, suspend (optionally freezing their events) and reactivate, with a reason and a fresh code. A suspended account is logged out at once and cannot log in any way. Never your own account; never the last active super admin. Other staff see accounts read-only.
+- Homepage: a small sliding "Our partners" strip (pauses on hover; still and swipeable for people who prefer less motion). Eight demo partners with made-up names are included.
+- Admin → Partners (Super admin, Trust & safety): add partners with a short line, https website and logo; show/hide, reorder, delete. Demo partners are marked so they can be replaced before launch.
+- Database change: migration 012 (account suspension, partners). 4 new unit tests (70 in total); browser tests now 15 (export per role, accounts, partners strip).
 
 ---
 
 ## Earlier versions (for reference)
 
 Each section below happened in an earlier version, shown newest first.
+
+<!-- Changes made in v1.23 (17 Nov 2026) -->
+### v1.23 · 17 Nov 2026 · Demo staff accounts for every admin role, and conflict-of-interest rules
+
+> Happened in **v1.23**, not in this version.
+
+- Demo Ahadi staff, one per admin role: 0700 000 001 Ahadi Admin and 0700 000 002 Grace Namuli (Super admins), 0700 000 003 Daniel Okello (Finance), 0700 000 004 Joan Akello (Trust & safety), 0700 000 005 Brian Ssali (Support). Added to the running app and to the demo seed.
+- With two super admins, the two-person rule for money settings (fees, prices, limits) can now be tested: one proposes, the other approves.
+- Each role was checked as that person: tabs, buttons on every tab, and every admin action against the server. Super: 13 tabs, all 16 actions. Finance: refunds, withdrawal reviews, reconciliation, payment jobs, analytics export. Trust & safety: freeze, verify, homepage, reports, documents, erasure (no Revenue tab). Support: read-only, every action refused.
+- New rule (conflict of interest): Ahadi staff cannot review a withdrawal, refund a payment or take over an event where they are themselves on the committee or asked for it. Another staff member must do it.
+- Browser tests now also cover the Finance and Trust & safety admins (12 checks, all pass). 1 new unit test (66 in total).
+<!-- End of v1.23 -->
 
 <!-- Changes made in v1.22 (17 Nov 2026) -->
 ### v1.22 · 17 Nov 2026 · Production readiness: security, privacy, backups, alerts, refunds and browser tests
