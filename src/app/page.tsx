@@ -15,6 +15,7 @@ import { featuredEvents } from '@/lib/services/events';
 import { getDb } from '@/lib/db';
 import { EVENT_TYPES, isSombre, toneClass } from '@/lib/eventTypes';
 import { formatDate } from '@/lib/time';
+import { ContactNav } from '@/components/ContactNav';
 
 export default async function Landing() {
   const { t } = getT();
@@ -34,6 +35,7 @@ export default async function Landing() {
       <header className="mx-auto w-full max-w-5xl flex items-center justify-between px-4 py-3">
         <Logo />
         <div className="flex items-center gap-2">
+          <ContactNav />
           <LangSwitcher />
           <Link href="/my" className="btn-ghost min-h-[44px] px-3 hidden sm:inline-flex">{t('nav.myPledges')}</Link>
           <Link href={user ? '/app' : '/login'} className="btn-ghost min-h-[44px] px-3">{user ? t('nav.events') : t('a.login')}</Link>

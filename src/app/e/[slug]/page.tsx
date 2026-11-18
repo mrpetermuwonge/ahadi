@@ -16,6 +16,7 @@ import { PledgeFlow } from './PledgeFlow';
 import { listUpdates } from '@/lib/services/engagement';
 import { ReportButton } from './ReportButton';
 import type { Key } from '@/i18n';
+import { ContactNav } from '@/components/ContactNav';
 
 /**
  * Link previews (WhatsApp, Facebook, SMS apps): the event's picture, name and a short line. Events without a
@@ -58,7 +59,7 @@ export default async function EventPage({ params }: { params: { slug: string } }
     <div className={`${toneClass(e.type)} min-h-screen pb-28`}>
       <header className="mx-auto max-w-2xl flex items-center justify-between px-4 py-3">
         <Logo />
-        <LangSwitcher />
+        <div className="flex items-center gap-2"><ContactNav topic="pledge" /><LangSwitcher /></div>
       </header>
       <nav className="mx-auto max-w-2xl px-4"><BackLink fallback="/" /></nav>
       <main className="mx-auto max-w-2xl px-4">

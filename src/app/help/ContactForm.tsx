@@ -1,9 +1,10 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useT } from '@/components/I18n';
 import { Alert } from '@/components/Ui';
 import { apiSend } from '@/components/client-utils';
+import { goToContactForm } from '@/components/ContactNav';
 
 const TOPICS = ['payment', 'pledge', 'event', 'account', 'fraud', 'other'] as const;
 
@@ -17,9 +18,15 @@ export function ContactForm({ initialTopic }: { initialTopic?: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ ref: string; token: string } | null>(null);
+  // Arrived from "Contact us" on another page (…#contact): bring the form into view and highlight it.
+  useEffect(() => {
+    if (window.location.hash !== '#contact') return;
+    const el = document.getElementById('contact-form');
+    if (el) window.setTimeout(() => goToContactForm(el, true), 150);
+  }, []);
   if (done) {
     return (
-      <div className="card p-5 space-y-3" role="status">
+      <div id="contact-form" className="card p-5 space-y-3" role="status">
         <Alert kind="ok">{t('hp.sent', { ref: done.ref })}</Alert>
         <p className="text-sm">{t('hp.sentHint')}</p>
         <Link className="btn-primary" href={`/help/r/${done.token}`}>{t('hp.openRequest')}</Link>
@@ -27,7 +34,7 @@ export function ContactForm({ initialTopic }: { initialTopic?: string }) {
     );
   }
   return (
-    <form className="card p-5 space-y-3" onSubmit={async (e) => {
+    <form id="contact-form" className="card p-5 space-y-3" onSubmit={async (e) => {
       e.preventDefault();
       setBusy(true);
       setError(null);

@@ -3,6 +3,7 @@ import { BackLink } from '@/components/BackLink';
 import { LangSwitcher } from '@/components/Ui';
 import { googleEnabled } from '@/lib/services/google';
 import { LoginForm } from './LoginForm';
+import { ContactNav } from '@/components/ContactNav';
 
 export const metadata = { title: 'Log in' };
 
@@ -14,7 +15,7 @@ export default function LoginPage({ searchParams }: { searchParams: { next?: str
     <div className="min-h-screen flex flex-col">
       <header className="mx-auto w-full max-w-md flex items-center justify-between px-4 py-3">
         <Logo />
-        <LangSwitcher />
+        <div className="flex items-center gap-2"><ContactNav topic="account" /><LangSwitcher /></div>
       </header>
       <nav className="mx-auto w-full max-w-md px-4"><BackLink fallback="/" /></nav>
       <main className="flex-1 mx-auto w-full max-w-md px-4 py-6">

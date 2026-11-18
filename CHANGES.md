@@ -1,17 +1,28 @@
-# Ahadi v1.28 – Changes
+# Ahadi v1.29 – Changes
 
-*18 Nov 2026 · Partners strip fits the page*
+*18 Nov 2026 · "Contact us" in the title bar*
 
-## Latest changes in this version (v1.28)
+## Latest changes in this version (v1.29)
 
-- Homepage "Our partners" strip is now the same width as the rest of the page (it no longer runs from edge to edge of the screen) and fades out softly at both ends.
-- Partner logos are a little bigger (56px instead of 48px), with slightly taller cards.
+- A "Contact us" button (chat icon with a green dot) is now in the title bar of the homepage, Help, every event page, login, My pledges, personal pledge pages and the organizer area. On phones it shows as the icon only, so the bar does not get crowded.
+- On the homepage and Help page it glides down to the contact form, makes the form glow briefly and (on a computer) puts the cursor in "Your name". On other pages it opens Help → contact form, which glows the same way.
+- The right topic is chosen for you: "My pledge" from event, pledge and My pledges pages, "Account" from login, "An event I run" from the organizer area.
+- People who turn off motion on their device get a steady outline instead of the glow. 1 new browser test (19 in total, all passing).
 
 ---
 
 ## Earlier versions (for reference)
 
 Each section below happened in an earlier version, shown newest first.
+
+<!-- Changes made in v1.28 (18 Nov 2026) -->
+### v1.28 · 18 Nov 2026 · Partners strip fits the page
+
+> Happened in **v1.28**, not in this version.
+
+- Homepage "Our partners" strip is now the same width as the rest of the page (it no longer runs from edge to edge of the screen) and fades out softly at both ends.
+- Partner logos are a little bigger (56px instead of 48px), with slightly taller cards.
+<!-- End of v1.28 -->
 
 <!-- Changes made in v1.27 (18 Nov 2026) -->
 ### v1.27 · 18 Nov 2026 · Phone numbers fix themselves, meeting pledges already paid, Contact Ahadi on the homepage

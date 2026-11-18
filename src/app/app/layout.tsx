@@ -7,6 +7,7 @@ import { LangSwitcher } from '@/components/Ui';
 import { PledgerBadge } from '@/components/PledgerBadge';
 import { LogoutButton } from './LogoutButton';
 import { AppBack } from './AppBack';
+import { ContactNav } from '@/components/ContactNav';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser('/app');
@@ -38,6 +39,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <nav className="hidden md:flex gap-1 mr-2">
               {nav.map((n) => item(n, 'btn-ghost min-h-[40px] px-3 text-sm', n.label))}
             </nav>
+            <ContactNav topic="event" />
             <LangSwitcher />
             <LogoutButton />
           </div>

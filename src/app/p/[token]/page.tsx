@@ -12,6 +12,7 @@ import { Logo } from '@/components/Brand';
 import { LangSwitcher } from '@/components/Ui';
 import { MyPledge } from './MyPledge';
 import { PortalGate } from './PortalGate';
+import { ContactNav } from '@/components/ContactNav';
 
 export const metadata = { title: 'My pledge', robots: { index: false } };
 
@@ -26,7 +27,7 @@ export default async function PledgePage({ params }: { params: { token: string }
   const p = v.pledge;
   const verified = await canViewPledge(db, cookies().get(DEVICE_COOKIE)?.value, params.token);
   const header = (
-    <header className="mx-auto max-w-md flex items-center justify-between px-4 py-3"><Logo /><LangSwitcher /></header>
+    <header className="mx-auto max-w-md flex items-center justify-between px-4 py-3"><Logo /><div className="flex items-center gap-2"><ContactNav topic="pledge" /><LangSwitcher /></div></header>
   );
   if (!verified) {
     return (

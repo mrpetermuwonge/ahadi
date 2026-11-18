@@ -281,6 +281,24 @@ export async function runRoleTests(BASE) {
     await page.getByText('Held by the committee').waitFor();
   });
 
+  await test('"Contact us" in the title bar leads to the contact form', async (page) => {
+    await page.setViewportSize({ width: 1200, height: 800 });
+    await page.goto('/');
+    const form = page.locator('#contact-form');
+    for (let i = 0; i < 10 && !(await form.evaluate((el) => el.classList.contains('contact-flash'))); i++) {
+      await page.locator('header').getByRole('link', { name: 'Contact us' }).click();
+      await page.waitForTimeout(1200);
+    }
+    const box = await form.boundingBox();
+    expect(!!box && box.y < 800 && box.y + box.height > 0, `form not in view: ${JSON.stringify(box)}`);
+    expect(await page.evaluate(() => document.activeElement?.id) === 'hp-name', 'cursor not in Your name');
+    await page.goto('/my');
+    await page.locator('header').getByRole('link', { name: 'Contact us' }).click();
+    await page.waitForURL(/\/help\?topic=pledge#contact/);
+    await page.locator('#contact-form.contact-flash').waitFor();
+    expect(await page.locator('#hp-topic').inputValue() === 'pledge', 'topic not chosen');
+  });
+
   await test('help: contact Ahadi, support answers, the person sees the answer', async (page) => {
     await page.goto('/help');
     await page.getByText('Do I need an account to pledge?').click();

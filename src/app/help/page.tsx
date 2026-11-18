@@ -7,6 +7,7 @@ import { Footer } from '@/components/Footer';
 import type { Key } from '@/i18n';
 import { ContactForm } from './ContactForm';
 import { ContactCards } from '@/components/ContactCards';
+import { ContactNav } from '@/components/ContactNav';
 
 export const metadata = { title: 'Help' };
 
@@ -22,7 +23,7 @@ export default function HelpPage({ searchParams }: { searchParams: { topic?: str
   const { t } = getT();
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="mx-auto w-full max-w-3xl flex items-center justify-between px-4 py-3"><Logo /><LangSwitcher /></header>
+      <header className="mx-auto w-full max-w-3xl flex items-center justify-between px-4 py-3"><Logo /><div className="flex items-center gap-2"><ContactNav /><LangSwitcher /></div></header>
       <nav className="mx-auto w-full max-w-3xl px-4"><BackLink fallback="/" /></nav>
       <main className="mx-auto w-full max-w-3xl px-4 pb-12 flex-1 space-y-6">
         <div>
