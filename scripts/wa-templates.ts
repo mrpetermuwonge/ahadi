@@ -38,6 +38,10 @@ const USE: Record<string, string> = {
   payout_requested: 'Committee: a withdrawal was requested (to treasurers and other organizers)',
   role_changed: 'Committee: your role changed or you were removed',
   owner_changed: 'Committee: you are now the organizer',
+  recorded: 'Pledge recorded by the committee: please confirm',
+  nudge: 'Reminder sent by the committee ("remind everyone who owes")',
+  update: 'New update from the organizer',
+  support_reply: 'Ahadi support replied',
 };
 for (const n of names) {
   const x = t.find((y) => y.name === n)!;

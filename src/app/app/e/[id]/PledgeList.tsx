@@ -8,6 +8,7 @@ import { apiSend, digits, fmtMoney, withCommas } from '@/components/client-utils
 interface Row {
   id: string; name: string; phone: string; phoneMasked: string; anonymous: boolean; amount: number; paid: number; balance: number;
   state: 'paid' | 'partial' | 'unpaid' | 'overdue'; dueDate: string | null;
+  recorded?: 'pending' | 'confirmed' | 'disputed' | null;
 }
 
 /** Pledge list with filters (all / paid / partial / unpaid / overdue) and search by name or phone (any format). */
@@ -70,6 +71,11 @@ export function PledgeList({ eventId, rows, currency, canAdjust }: { eventId: st
                 <div className="min-w-0">
                   <p className="font-semibold truncate">{r.name}{r.anonymous && <span className="text-xs text-muted"> · {t('ev.anonymous')}</span>}</p>
                   <p className="text-sm text-muted">{r.phoneMasked}{r.dueDate ? ` · ${t('dash.due', { date: r.dueDate })}` : ''}</p>
+                  {r.recorded && (
+                    <span className={`chip mt-1 text-[11px] ${r.recorded === 'disputed' ? 'bg-bad/15 text-bad' : r.recorded === 'confirmed' ? 'bg-ok/15 text-ok' : 'bg-accent/25 text-ink'}`}>
+                      {t(`rp.chip.${r.recorded}` as any)}
+                    </span>
+                  )}
                 </div>
                 <div className="text-right shrink-0">
                   <p className="font-bold">{fmtMoney(r.amount, currency)}</p>

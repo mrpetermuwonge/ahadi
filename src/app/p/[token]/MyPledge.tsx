@@ -13,6 +13,8 @@ interface Data {
   pendingChange: number | null;
   payments: { id: string; receiptNo: string | null; amount: number; status: string; date: string }[];
   noun: string;
+  /** Pledges the committee recorded for this person (at a meeting or from a list). */
+  recorded: 'pending' | 'confirmed' | 'disputed' | null;
 }
 
 export function MyPledge({ token, data, fee, tips }: { token: string; data: Data; fee: { percent: number; min: number }; tips: number[] }) {
@@ -70,11 +72,35 @@ export function MyPledge({ token, data, fee, tips }: { token: string; data: Data
           <div><dt className="text-xs text-muted">{t('my.paid')}</dt><dd className="font-bold text-ok">{fmtMoney(data.paid, data.currency)}</dd></div>
           <div><dt className="text-xs text-muted">{t('my.balance')}</dt><dd className="font-bold">{fmtMoney(Math.max(0, data.balance), data.currency)}</dd></div>
         </dl>
-        {data.balance <= 0 && <div className="mt-4"><Alert kind="ok">{t('my.fullyPaid')}</Alert></div>}
+        {data.recorded === 'pending' && (
+          <div className="mt-4 rounded-xl border-2 border-accent/60 bg-accent-soft/50 p-4">
+            <p className="font-semibold">{t('rp.confirmTitle')}</p>
+            <p className="text-sm text-muted mt-1">{t('rp.confirmText')}</p>
+            <div className="grid sm:grid-cols-2 gap-2 mt-3">
+              <button className="btn-primary" disabled={busy} onClick={async () => {
+                setBusy(true);
+                const r = await apiSend(`/api/p/${token}/confirm`, {});
+                setBusy(false);
+                if (!r.ok) return setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
+                router.refresh();
+              }}>{t('rp.yes')}</button>
+              <button className="btn-outline" disabled={busy || data.paid > 0} onClick={async () => {
+                if (!window.confirm(t('rp.noConfirm'))) return;
+                setBusy(true);
+                const r = await apiSend(`/api/p/${token}/dispute`, {});
+                setBusy(false);
+                if (!r.ok) return setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
+                router.refresh();
+              }}>{t('rp.no')}</button>
+            </div>
+          </div>
+        )}
+        {data.recorded === 'disputed' && <div className="mt-4"><Alert kind="info">{t('rp.disputed')}</Alert></div>}
+        {data.balance <= 0 && data.recorded !== 'disputed' && <div className="mt-4"><Alert kind="ok">{t('my.fullyPaid')}</Alert></div>}
         {data.pendingChange !== null && <div className="mt-4"><Alert kind="info">{t('my.changePending', { amount: fmtMoney(data.pendingChange, data.currency) })}</Alert></div>}
         {msg && <div className="mt-4"><Alert kind={msg.kind}>{msg.text}</Alert></div>}
 
-        {data.open && mode === 'none' && (
+        {data.open && mode === 'none' && data.recorded !== 'disputed' && (
           <div className="grid gap-2 mt-5">
             <button className="btn-accent" onClick={() => { setMode('pay'); setMsg(null); }}>{data.balance > 0 ? t('my.payBalance') : t('my.payMore')}</button>
             <button className="btn-outline" onClick={() => { setMode('change'); setMsg(null); }}>{t('my.change')}</button>
@@ -133,6 +159,7 @@ export function MyPledge({ token, data, fee, tips }: { token: string; data: Data
       </section>
 
       <Link href={`/e/${data.slug}`} className="btn-ghost w-full">{data.title}</Link>
+      <Link href="/help?topic=payment#contact" className="block text-center text-sm text-brand font-semibold">{t('hp.needHelp')}</Link>
     </div>
   );
 }

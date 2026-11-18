@@ -9,6 +9,9 @@ import { maskPhone } from '@/lib/phone';
 import { ProgressRing } from '@/components/Ui';
 import { PledgeList } from './PledgeList';
 import { ActionButton } from './ActionButton';
+import { RecordPledges, RemindOwing, UpdatesPanel } from './CommitteeTools';
+import { listUpdates, owingSummary } from '@/lib/services/engagement';
+import { adminCan } from '@/lib/adminPermissions';
 import type { Key } from '@/i18n';
 
 export default async function EventDashboard({ params }: { params: { id: string } }) {
@@ -29,6 +32,8 @@ export default async function EventDashboard({ params }: { params: { id: string 
   const maxDay = Math.max(1, ...activity.map((a) => Math.max(Number(a.pledged), Number(a.collected))));
   const pendingMsgs = rows.filter((r) => r.message && r.messageStatus === 'pending');
   const contacts = perms['pledges.contacts'];
+  const owing = perms['pledgers.remind'] ? await owingSummary(db, e.id) : null;
+  const updates = await listUpdates(db, e.id, true);
 
   return (
     <div className="space-y-4">
@@ -55,6 +60,16 @@ export default async function EventDashboard({ params }: { params: { id: string 
           <p className="text-sm text-muted">{t(`role.${role}.d` as Key)}</p>
         </div>
       </section>
+
+      {(perms['pledges.record'] || owing) && (
+        <div className="grid lg:grid-cols-2 gap-4">
+          {perms['pledges.record'] && <RecordPledges eventId={e.id} currency={e.currency} />}
+          {owing && <RemindOwing eventId={e.id} currency={e.currency} {...owing} />}
+        </div>
+      )}
+
+      <UpdatesPanel eventId={e.id} canPost={perms['updates.post']} staffHide={adminCan(user, 'updates.hide')}
+        updates={updates.map((u) => ({ id: u.id, body: u.body, image_file_id: u.image_file_id, notified: u.notified, created_at: new Date(u.created_at).toISOString(), hidden_at: u.hidden_at ? new Date(u.hidden_at).toISOString() : null }))} />
 
       {perms['ledger.export'] && (
       <section className="card p-5">

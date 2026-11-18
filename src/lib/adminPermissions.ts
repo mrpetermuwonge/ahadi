@@ -40,7 +40,10 @@ export type AdminPermission =
   | 'accounts.view'
   | 'accounts.manage'
   | 'partners.manage'
-  | 'events.cover';
+  | 'events.cover'
+  | 'updates.hide'
+  | 'support.view'
+  | 'support.reply';
 
 const MATRIX: Record<AdminPermission, readonly AdminRole[]> = {
   'admin.view': ['super', 'finance', 'trust', 'support'],
@@ -69,6 +72,10 @@ const MATRIX: Record<AdminPermission, readonly AdminRole[]> = {
   'accounts.manage': ['super'],
   'partners.manage': ['super', 'trust'],
   'events.cover': ['super', 'trust'],
+  'updates.hide': ['super', 'trust'],
+  'support.view': ['super', 'finance', 'trust', 'support'],
+  // Answering people is Support's job, so Support may reply even though it changes nothing else.
+  'support.reply': ['super', 'finance', 'trust', 'support'],
 };
 
 /** Settings that move money or change what people pay: changing them needs a second super admin. */

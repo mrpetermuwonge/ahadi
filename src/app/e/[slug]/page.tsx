@@ -5,6 +5,7 @@ import { getDb } from '@/lib/db';
 import { publicEvent } from '@/lib/services/events';
 import { getSettings } from '@/lib/settings';
 import { getT } from '@/i18n/server';
+import { APP_URL } from '@/lib/config';
 import { EVENT_TYPES, isSombre, toneClass, type EventType } from '@/lib/eventTypes';
 import { formatMoney, percent } from '@/lib/money';
 import { formatDate } from '@/lib/time';
@@ -12,12 +13,31 @@ import { COUNTRIES } from '@/lib/countries';
 import { Logo, TypeIcon } from '@/components/Brand';
 import { LangSwitcher, ProgressRing } from '@/components/Ui';
 import { PledgeFlow } from './PledgeFlow';
+import { listUpdates } from '@/lib/services/engagement';
 import { ReportButton } from './ReportButton';
 import type { Key } from '@/i18n';
 
+/**
+ * Link previews (WhatsApp, Facebook, SMS apps): the event's picture, name and a short line. Events without a
+ * cover get a branded picture with their name. Previews need the real public address in APP_URL.
+ */
 export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
   const data = await publicEvent(await getDb(), params.slug);
-  return data ? { title: data.event.title, description: data.event.story.slice(0, 150) } : {};
+  if (!data) return {};
+  const e = data.event;
+  const base = APP_URL();
+  const { t } = getT();
+  const sombre = isSombre(e.type as EventType);
+  const line = (e.story || '').replace(/\s+/g, ' ').trim().slice(0, 150) || t(sombre ? 'og.sombre' : 'og.invite');
+  const image = e.cover_file_id
+    ? { url: `${base}/api/files/${e.cover_file_id}`, width: 1280, height: 720, alt: e.title }
+    : { url: `${base}/api/og?t=${encodeURIComponent(e.title)}&k=${encodeURIComponent(t(sombre ? 'og.kickerSombre' : 'og.kicker'))}`, width: 1200, height: 630, alt: e.title };
+  return {
+    title: e.title,
+    description: line,
+    openGraph: { type: 'website', siteName: 'Ahadi', title: e.title, description: line, url: `${base}/e/${e.slug}`, images: [image] },
+    twitter: { card: 'summary_large_image', title: e.title, description: line, images: [image.url] },
+  };
 }
 
 export default async function EventPage({ params }: { params: { slug: string } }) {
@@ -25,6 +45,7 @@ export default async function EventPage({ params }: { params: { slug: string } }
   const data = await publicEvent(db, params.slug);
   if (!data) notFound();
   const { event: e, totals, messages, supporters } = data;
+  const updates = await listUpdates(db, e.id);
   const { t } = getT();
   const tpl = EVENT_TYPES[e.type as EventType];
   const settings = await getSettings(db);
@@ -114,6 +135,24 @@ export default async function EventPage({ params }: { params: { slug: string } }
             </p>
           </div>
         </article>
+
+        {updates.length > 0 && (
+          <section className="card p-5 mt-4 scroll-mt-4" id="updates">
+            <h2 className="font-bold text-lg">{t('up.publicTitle')}</h2>
+            <ul className="mt-3 space-y-4">
+              {updates.map((u) => (
+                <li key={u.id} className="border-l-4 border-accent/60 pl-3">
+                  <p className="text-xs text-muted">{formatDate(new Date(u.created_at).toISOString().slice(0, 10))} · {u.author}</p>
+                  <p className="whitespace-pre-line mt-1">{u.body}</p>
+                  {u.image_file_id && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={`/api/files/${u.image_file_id}`} alt="" loading="lazy" className="mt-2 rounded-xl w-full max-h-80 object-cover" />
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         {messages.length > 0 && (
           <section className="card p-5 mt-4">

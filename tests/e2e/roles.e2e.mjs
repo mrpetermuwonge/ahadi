@@ -226,6 +226,60 @@ export async function runRoleTests(BASE) {
     expect((await page.locator('.partners-track li').count()) >= 8, 'partners missing');
   });
 
+  await test('organizer: record a meeting pledge, upload a list, remind, post an update', async (page) => {
+    await login(page, ORGANIZER);
+    const id = await eventId(page);
+    await page.goto(`/app/e/${id}`);
+    // The first visit compiles the page; click again until the form has opened (the page is interactive).
+    for (let i = 0; i < 10 && !(await page.getByLabel('Your name').isVisible()); i++) {
+      await page.getByRole('button', { name: 'Add one pledge' }).click();
+      await page.waitForTimeout(1000);
+    }
+    await page.getByLabel('Your name').fill('Meeting Guest');
+    await page.getByLabel('Your phone number').fill('0772 777 001');
+    await page.getByLabel('How much?').fill('75000');
+    await page.getByRole('button', { name: 'Add pledge and notify' }).click();
+    await page.getByText('was added and asked to confirm').waitFor();
+    await page.getByRole('button', { name: 'Upload a list (Excel/CSV)' }).click();
+    await page.locator('input[type=file][accept=".xlsx,.csv"]').setInputFiles({ name: 'list.csv', mimeType: 'text/csv', buffer: Buffer.from(['Name,Phone,Amount', 'List One,0772777002,20000', 'List Two,0772777003,30000', ''].join('\n')) });
+    await page.getByRole('button', { name: 'Check the file' }).click();
+    await page.getByText('2 pledges found').waitFor();
+    await page.getByRole('button', { name: 'Add 2 pledges and notify' }).click();
+    await page.getByText('2 added.').waitFor();
+    await page.reload();
+    await page.getByText('Recorded by committee').first().waitFor();
+    expect((await page.getByText('Recorded by committee').count()) >= 3, 'recorded chips missing');
+    const r = await page.evaluate(async (id) => (await fetch(`/api/events/${id}/remind-owing`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).status, id);
+    expect(r === 200 || r === 400, `remind status ${r}`); // 400 only if run during quiet hours
+    await page.getByPlaceholder('Write your update…').fill('We reached half of our target. Thank you!');
+    await page.getByRole('button', { name: 'Post update' }).click();
+    await page.getByText(/Posted/).waitFor();
+    const slug = await page.locator('a[href^="/e/"][target="_blank"]').first().getAttribute('href');
+    await page.goto(slug);
+    await page.getByText('We reached half of our target').waitFor();
+    const og = await page.locator('meta[property="og:image"]').getAttribute('content');
+    expect(!!og && /\/api\/(files|og)/.test(og), 'no link preview image');
+  });
+
+  await test('help: contact Ahadi, support answers, the person sees the answer', async (page) => {
+    await page.goto('/help');
+    await page.getByText('Do I need an account to pledge?').click();
+    await page.getByLabel('Your name').fill('E2E Visitor');
+    await page.getByLabel('Phone (WhatsApp) or email').fill('0772 777 009');
+    await page.getByLabel('Your message').fill('My mobile money payment did not show on my pledge.');
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    await page.getByText(/Your reference is AH-SUP-/).waitFor();
+    const link = await page.getByRole('link', { name: 'Open my request' }).getAttribute('href');
+    await login(page, SUPPORT);
+    await page.goto('/admin?tab=support');
+    await page.getByText('E2E Visitor').first().click();
+    await page.getByLabel('Your answer').fill('Thanks, we found your payment and it now shows.');
+    await page.getByRole('button', { name: 'Send answer' }).click();
+    await page.getByText('Answer sent.').waitFor();
+    await page.goto(link);
+    await page.getByText('we found your payment').waitFor();
+  });
+
   await test('signed-out visitors cannot open admin or event dashboards', async (page) => {
     await page.goto('/admin');
     await page.waitForURL(/\/login/, { timeout: 15000 });

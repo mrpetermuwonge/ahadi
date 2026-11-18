@@ -22,7 +22,7 @@ These items were left for later on purpose (15 Nov 2026; items 6–7 added 17 No
   - each with the header `x-cron-secret: <your secret>`
 
 ## 4. Connect WhatsApp and the payment providers
-- [ ] **WhatsApp Business API (Meta):** access token, phone number ID, the login (authentication) template and the 12 message templates approved by Meta, webhook verify token and app secret. Templates are listed in `docs/whatsapp-templates.md`.
+- [ ] **WhatsApp Business API (Meta):** access token, phone number ID, the login (authentication) template and the message templates approved by Meta (21 in total), webhook verify token and app secret. Templates are listed in `docs/whatsapp-templates.md`.
 - [ ] **ZengaPay and DPO:** the adapters are stubs. Needed: official API docs, sandbox keys, callback/webhook format and signing, fee schedule, prompt timeout. Files: `src/lib/payments/zengapay.ts`, `src/lib/payments/dpo.ts`. Then set `PAYMENT_PROVIDERS` (it is `mock` today).
 - [ ] Optional: email (Resend API key and a verified domain), Google sign-in (OAuth client ID and secret), Africa's Talking SMS keys for the SMS fallback.
 

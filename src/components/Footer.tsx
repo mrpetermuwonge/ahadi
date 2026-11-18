@@ -8,6 +8,7 @@ export function Footer() {
       <div className="mx-auto max-w-5xl px-4 flex flex-wrap gap-4 justify-between">
         <span>© Ahadi · {t('footer.made')}</span>
         <span className="flex gap-4">
+          <Link className="underline" href="/help">{t('hp.nav')}</Link>
           <Link className="underline" href="/my">{t('nav.myPledges')}</Link>
           <Link className="underline" href="/privacy">{t('legal.privacy')}</Link>
           <Link className="underline" href="/terms">{t('legal.terms')}</Link>

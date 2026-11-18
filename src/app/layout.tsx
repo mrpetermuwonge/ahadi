@@ -10,10 +10,13 @@ import { StepUpDialog } from '@/components/StepUpDialog';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.APP_URL ?? 'http://localhost:3000'),
   title: { default: 'Ahadi — pledges you can trust', template: '%s · Ahadi' },
   description: 'Collect, track and fulfil pledges for weddings, birthdays, hospital bills and funerals.',
   manifest: '/manifest.webmanifest',
   icons: { icon: '/icon.svg', apple: '/icon.svg' },
+  // Default link preview for every page (events set their own picture).
+  openGraph: { type: 'website', siteName: 'Ahadi', images: [{ url: '/api/og', width: 1200, height: 630 }] },
 };
 
 export const viewport: Viewport = {

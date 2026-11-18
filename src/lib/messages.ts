@@ -8,7 +8,7 @@ import { fillTemplate } from './sms';
  * Variables: {name} {event} {amount} {balance} {date} {link} {percent}
  * Luganda and Swahili drafts should be reviewed by a native speaker before launch.
  */
-export type Stage = 'before' | 'due' | 'after' | 'thanks' | 'milestone' | 'invite' | 'otp' | 'pledged' | 'payout_requested' | 'role_changed' | 'owner_changed';
+export type Stage = 'before' | 'due' | 'after' | 'thanks' | 'milestone' | 'invite' | 'otp' | 'pledged' | 'payout_requested' | 'role_changed' | 'owner_changed' | 'recorded' | 'nudge' | 'update' | 'support_reply';
 type Variant = 'warm' | 'calm';
 const T: Record<string, Record<Variant, Partial<Record<Stage, string>>>> = {
   en: {
@@ -20,6 +20,10 @@ const T: Record<string, Record<Variant, Partial<Record<Stage, string>>>> = {
       thanks: 'Thank you {name}! We received {amount} for {event}. Receipt: {link}',
       milestone: 'Great news! {event} has reached {percent}% of its target. See the dashboard: {link}',
       invite: 'You have been added to the committee of {event} on Ahadi. Log in with this phone number: {link}',
+      recorded: 'Hello {name}, the committee recorded your pledge of {amount} to {event} on Ahadi. Please confirm it or tell us if it is wrong: {link} Thank you!',
+      nudge: 'Hello {name}, a friendly reminder from {event}: you still have {balance} to pay. Pay here: {link} Thank you!',
+      update: 'There is a new update from {event} on Ahadi. Read it here: {link} Thank you for your support.',
+      support_reply: 'Ahadi support replied to your request {ref}. Read and answer here: {link} Thank you.',
       payout_requested: 'A withdrawal of {amount} was requested for {event} on Ahadi. Please review it: {link} Thank you.',
       role_changed: 'Your role on the committee of {event} on Ahadi is now: {role}. Details: {link} Thank you.',
       owner_changed: 'You are now the organizer of {event} on Ahadi. Open your dashboard: {link} Thank you.',
@@ -32,6 +36,10 @@ const T: Record<string, Record<Variant, Partial<Record<Stage, string>>>> = {
       thanks: 'Thank you {name}. We received {amount} for {event}. Receipt: {link}',
       milestone: '{event} has reached {percent}% of the amount needed. Dashboard: {link}',
       invite: 'You have been added to the committee of {event} on Ahadi. Log in with this phone number: {link}',
+      recorded: 'Hello {name}. The family recorded your support of {amount} for {event} on Ahadi. Please confirm it or tell us if it is wrong: {link} Thank you.',
+      nudge: 'Hello {name}. A gentle reminder for {event}: {balance} of your support is still open. You can pay here: {link} Thank you.',
+      update: 'There is a new update from {event} on Ahadi. Read it here: {link} Thank you for your support.',
+      support_reply: 'Ahadi support replied to your request {ref}. Read and answer here: {link} Thank you.',
       payout_requested: 'A withdrawal of {amount} was requested for {event} on Ahadi. Please review it: {link} Thank you.',
       role_changed: 'Your role on the committee of {event} on Ahadi is now: {role}. Details: {link} Thank you.',
       owner_changed: 'You are now the organizer of {event} on Ahadi. Open your dashboard: {link} Thank you.',
@@ -46,6 +54,10 @@ const T: Record<string, Record<Variant, Partial<Record<Stage, string>>>> = {
       thanks: 'Webale nnyo {name}! Tufunye {amount} eri {event}. Lisiiti: {link}',
       milestone: '{event} etuuse ku {percent}% ku kigendererwa. {link}',
       invite: 'Oyongeddwa ku kakiiko ka {event} ku Ahadi. Yingira n\'ennamba eno: {link}',
+      recorded: 'Gyebale {name}, akakiiko kawandiise obweyamo bwo bwa {amount} ku {event} ku Ahadi. Bukakase oba tubuulire bwe kiba nga si kituufu: {link}',
+      nudge: 'Gyebale {name}, okujjukiza okuva ku {event}: okyalina {balance} okusasula. Sasula wano: {link}',
+      update: 'Waliwo amawulire amapya okuva ku {event} ku Ahadi. Gasome wano: {link}',
+      support_reply: 'Obuyambi bwa Ahadi buzzeemu okusaba kwo {ref}. Soma era oddemu wano: {link}',
       payout_requested: 'Waliwo asabye okuggyayo {amount} ku {event} ku Ahadi. Kyekenneenye: {link}',
       role_changed: 'Ekifo kyo ku kakiiko ka {event} ku Ahadi kati: {role}. {link}',
       owner_changed: 'Kati ggwe mutegesi wa {event} ku Ahadi. Ggulawo dashibodi yo: {link}',
@@ -58,6 +70,10 @@ const T: Record<string, Record<Variant, Partial<Record<Stage, string>>>> = {
       thanks: 'Webale {name}. Tufunye {amount} eri {event}. Lisiiti: {link}',
       milestone: '{event} etuuse ku {percent}% ku ssente ezeetaagibwa. {link}',
       invite: 'Oyongeddwa ku kakiiko ka {event} ku Ahadi. Yingira n\'ennamba eno: {link}',
+      recorded: 'Gyebale {name}, akakiiko kawandiise obweyamo bwo bwa {amount} ku {event} ku Ahadi. Bukakase oba tubuulire bwe kiba nga si kituufu: {link}',
+      nudge: 'Gyebale {name}, okujjukiza okuva ku {event}: okyalina {balance} okusasula. Sasula wano: {link}',
+      update: 'Waliwo amawulire amapya okuva ku {event} ku Ahadi. Gasome wano: {link}',
+      support_reply: 'Obuyambi bwa Ahadi buzzeemu okusaba kwo {ref}. Soma era oddemu wano: {link}',
       payout_requested: 'Waliwo asabye okuggyayo {amount} ku {event} ku Ahadi. Kyekenneenye: {link}',
       role_changed: 'Ekifo kyo ku kakiiko ka {event} ku Ahadi kati: {role}. {link}',
       owner_changed: 'Kati ggwe mutegesi wa {event} ku Ahadi. Ggulawo dashibodi yo: {link}',
@@ -72,6 +88,10 @@ const T: Record<string, Record<Variant, Partial<Record<Stage, string>>>> = {
       thanks: 'Asante {name}! Tumepokea {amount} kwa {event}. Risiti: {link}',
       milestone: '{event} imefikia {percent}% ya lengo. {link}',
       invite: 'Umeongezwa kwenye kamati ya {event} kwenye Ahadi. Ingia kwa namba hii: {link}',
+      recorded: 'Habari {name}, kamati imerekodi ahadi yako ya {amount} kwa {event} kwenye Ahadi. Tafadhali ithibitishe au tuambie kama si sahihi: {link} Asante!',
+      nudge: 'Habari {name}, ukumbusho kutoka {event}: bado una {balance} ya kulipa. Lipa hapa: {link} Asante!',
+      update: 'Kuna habari mpya kutoka {event} kwenye Ahadi. Isome hapa: {link} Asante kwa msaada wako.',
+      support_reply: 'Msaada wa Ahadi umejibu ombi lako {ref}. Soma na ujibu hapa: {link} Asante.',
       payout_requested: 'Ombi la kutoa {amount} limefanywa kwa {event} kwenye Ahadi. Tafadhali likague: {link} Asante.',
       role_changed: 'Nafasi yako kwenye kamati ya {event} kwenye Ahadi sasa ni: {role}. Maelezo: {link} Asante.',
       owner_changed: 'Sasa wewe ndiye mwandaaji wa {event} kwenye Ahadi. Fungua dashibodi yako: {link} Asante.',
@@ -84,6 +104,10 @@ const T: Record<string, Record<Variant, Partial<Record<Stage, string>>>> = {
       thanks: 'Asante {name}. Tumepokea {amount} kwa {event}. Risiti: {link}',
       milestone: '{event} imefikia {percent}% ya kiasi kinachohitajika. {link}',
       invite: 'Umeongezwa kwenye kamati ya {event} kwenye Ahadi. Ingia kwa namba hii: {link}',
+      recorded: 'Habari {name}. Familia imerekodi msaada wako wa {amount} kwa {event} kwenye Ahadi. Tafadhali uthibitishe au tuambie kama si sahihi: {link} Asante.',
+      nudge: 'Habari {name}. Ukumbusho kwa {event}: {balance} ya msaada wako bado haijalipwa. Unaweza kulipa hapa: {link} Asante.',
+      update: 'Kuna habari mpya kutoka {event} kwenye Ahadi. Isome hapa: {link} Asante kwa msaada wako.',
+      support_reply: 'Msaada wa Ahadi umejibu ombi lako {ref}. Soma na ujibu hapa: {link} Asante.',
       payout_requested: 'Ombi la kutoa {amount} limefanywa kwa {event} kwenye Ahadi. Tafadhali likague: {link} Asante.',
       role_changed: 'Nafasi yako kwenye kamati ya {event} kwenye Ahadi sasa ni: {role}. Maelezo: {link} Asante.',
       owner_changed: 'Sasa wewe ndiye mwandaaji wa {event} kwenye Ahadi. Fungua dashibodi yako: {link} Asante.',
@@ -116,9 +140,9 @@ export async function renderMessage(
 }
 
 /** Stages whose SMS wording staff may change in Admin → Settings (the one-time code text is fixed). */
-export const EDITABLE_STAGES: Stage[] = ['pledged', 'before', 'due', 'after', 'thanks', 'milestone', 'invite', 'payout_requested', 'role_changed', 'owner_changed'];
+export const EDITABLE_STAGES: Stage[] = ['pledged', 'recorded', 'before', 'due', 'after', 'nudge', 'thanks', 'milestone', 'update', 'invite', 'payout_requested', 'role_changed', 'owner_changed', 'support_reply'];
 /** Placeholders a message may use. */
-export const PLACEHOLDERS = ['name', 'event', 'amount', 'balance', 'date', 'link', 'percent', 'role'];
+export const PLACEHOLDERS = ['name', 'event', 'amount', 'balance', 'date', 'link', 'percent', 'role', 'ref'];
 
 /** Built-in wording for a stage (before any admin change). */
 export function defaultMessage(eventType: EventType, locale: string, stage: Stage): string {

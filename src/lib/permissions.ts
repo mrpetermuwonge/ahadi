@@ -21,6 +21,9 @@ export type Permission =
   | 'event.share'
   | 'pledges.contacts' // full phone numbers of pledgers
   | 'pledges.adjust'
+  | 'pledges.record' // add pledges made at a meeting / import a list
+  | 'pledgers.remind' // "remind everyone who still owes"
+  | 'updates.post' // post news to supporters
   | 'pledges.decideChange'
   | 'messages.moderate'
   | 'ledger.view'
@@ -43,6 +46,9 @@ const MATRIX: Record<Permission, readonly EventRole[]> = {
   'event.share': ['owner', 'treasurer', 'viewer'],
   'pledges.contacts': ['owner', 'treasurer', 'admin'],
   'pledges.adjust': ['owner'],
+  'pledges.record': ['owner', 'treasurer'],
+  'pledgers.remind': ['owner', 'treasurer'],
+  'updates.post': ['owner'],
   'pledges.decideChange': ['owner'],
   'messages.moderate': ['owner'],
   'ledger.view': ['owner', 'treasurer', 'admin'],

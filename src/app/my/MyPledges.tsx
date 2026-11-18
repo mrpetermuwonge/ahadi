@@ -53,6 +53,7 @@ export function MyPledges() {
       )}
       {/* With no pledges, "Back to home" already closes the portal (the homepage ends the verification). */}
       {me.verified && !empty && <button className="btn-ghost w-full" onClick={forget}>{t('mine.done')}</button>}
+      <Link href="/help" className="block text-center text-sm text-brand font-semibold">{t('hp.needHelp')}</Link>
     </div>
   );
 }

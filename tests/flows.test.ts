@@ -1015,3 +1015,95 @@ describe('admin content tools (v1.25)', () => {
     expect((await findPledger(db, '0772 111 004', true))!.phone).toBe('+256772111004');
   });
 });
+
+describe('meeting pledges, reminders, updates and support (v1.26)', () => {
+  it('committee records pledges: each person is notified and can confirm or say "not mine"', async () => {
+    const { recordPledges, confirmRecordedPledge, disputeRecordedPledge } = await import('@/lib/services/committeePledges');
+    const owner = await mkUser('+256700001101');
+    const e = await mkEvent(owner);
+    const r = await recordPledges(db, e.id, owner.id, [
+      { name: 'Jane Namuli', phone: '0772 111 101', amount: 100000 },
+      { name: 'John Okello', phone: '0772111102', amount: 50000, dueDate: '2099-01-31' },
+      { name: 'Bad', phone: '123', amount: 1000 },
+    ], 'committee');
+    expect(r.added).toBe(2);
+    expect(r.errors).toEqual([{ row: 3, error: 'invalid_phone' }]);
+    const again = await recordPledges(db, e.id, owner.id, [{ name: 'Jane Namuli', phone: '0772111101', amount: 5 }], 'committee');
+    expect(again.duplicates).toEqual(['Jane Namuli']);
+    expect((await eventTotals(db, e.id)).pledged).toBe(150000);
+    const msgs = await db.query(`SELECT recipient FROM messages_log WHERE purpose='recorded' ORDER BY recipient`);
+    expect(msgs.map((m: any) => m.recipient)).toEqual(['+256772111101', '+256772111102']);
+    const [p1] = await db.query(`SELECT access_token, source, recorded_by FROM pledges p JOIN pledgers pl ON pl.id=p.pledger_id WHERE pl.phone='+256772111101'`);
+    expect(p1).toMatchObject({ source: 'committee', recorded_by: owner.id });
+    await confirmRecordedPledge(db, p1.access_token);
+    const [p2] = await db.query(`SELECT p.id, access_token FROM pledges p JOIN pledgers pl ON pl.id=p.pledger_id WHERE pl.phone='+256772111102'`);
+    await disputeRecordedPledge(db, p2.access_token);
+    expect((await eventTotals(db, e.id)).pledged).toBe(100000);
+    expect(await unbalancedJournals(db)).toEqual([]);
+    const rows = await pledgeRows(db, e.id);
+    expect(rows.map((x) => x.recorded).sort()).toEqual(['confirmed', 'disputed']);
+  });
+
+  it('reads a CSV list with or without a header row', async () => {
+    const { parsePledgeList } = await import('@/lib/services/committeePledges');
+    const withHeader = await parsePledgeList(new TextEncoder().encode('Name,Phone,Amount,Due date\n"Okello, Peter",0772123456,"100,000",\nAnn,0701234567,UGX 50000,2027-01-01\nBob,0700000000,abc,\n'), 'list.csv');
+    expect(withHeader.rows).toEqual([
+      { name: 'Okello, Peter', phone: '0772123456', amount: 100000, dueDate: null },
+      { name: 'Ann', phone: '0701234567', amount: 50000, dueDate: '2027-01-01' },
+    ]);
+    expect(withHeader.errors).toEqual([{ row: 4, error: 'invalid_amount' }]);
+    const noHeader = await parsePledgeList(new TextEncoder().encode('Mary,0772000001,20000'), 'x.csv');
+    expect(noHeader.rows[0]).toMatchObject({ name: 'Mary', amount: 20000 });
+  });
+
+  it('"remind everyone who still owes" reaches only people with a balance, once a day', async () => {
+    const { remindOwing, owingSummary } = await import('@/lib/services/engagement');
+    const owner = await mkUser('+256700001103');
+    const e = await mkEvent(owner);
+    await pledge(e.id, '0772111103', 40000, 'later');
+    const paid = await pledge(e.id, '0772111104', 30000);
+    await webhook((await payFor(paid.access_token, 30000)).id, 'succeeded');
+    expect((await owingSummary(db, e.id)).count).toBe(1);
+    // force daytime so the test does not depend on the clock
+    await db.query(`UPDATE settings SET value='0'::jsonb WHERE key IN ('quiet_hours_start','quiet_hours_end')`).catch(() => {});
+    const { saveSetting } = await import('@/lib/settings');
+    await saveSetting(db, 'quiet_hours_start', 0, owner.id);
+    await saveSetting(db, 'quiet_hours_end', 0, owner.id);
+    const r = await remindOwing(db, e.id, owner.id);
+    expect(r).toEqual({ owing: 1, sent: 1 });
+    await expect(remindOwing(db, e.id, owner.id)).rejects.toMatchObject({ code: 'nudge_too_soon' });
+  });
+
+  it('updates show on the event and notify pledgers at most once a day', async () => {
+    const { postUpdate, listUpdates, hideUpdate } = await import('@/lib/services/engagement');
+    const { saveSetting } = await import('@/lib/settings');
+    const owner = await mkUser('+256700001105');
+    await saveSetting(db, 'quiet_hours_start', 0, owner.id);
+    await saveSetting(db, 'quiet_hours_end', 0, owner.id);
+    const e = await mkEvent(owner);
+    await pledge(e.id, '0772111105', 10000, 'later');
+    const a = await postUpdate(db, e.id, owner.id, { body: 'We reached 80%! Thank you all.', imageFileId: null, notifyPledgers: true });
+    expect(a).toMatchObject({ notified: 1, notifySkipped: false });
+    const b = await postUpdate(db, e.id, owner.id, { body: 'Venue confirmed.', imageFileId: null, notifyPledgers: true });
+    expect(b.notifySkipped).toBe(true);
+    expect((await listUpdates(db, e.id)).length).toBe(2);
+    await hideUpdate(db, e.id, b.id, owner.id, false);
+    expect((await listUpdates(db, e.id)).map((u) => u.body)).toEqual(['We reached 80%! Thank you all.']);
+  });
+
+  it('support: request, staff answer by WhatsApp, the person answers back', async () => {
+    const { createRequest, staffReply, addRequesterMessage, requestByToken } = await import('@/lib/services/supportRequests');
+    const staff = await mkUser('+256700001106', true);
+    await expect(createRequest(db, { name: 'Ann', contact: 'nope', topic: 'payment', message: 'My payment did not show up' })).rejects.toMatchObject({ code: 'invalid_contact' });
+    const { ref, token } = await createRequest(db, { name: 'Ann', contact: '0772111106', topic: 'payment', message: 'My payment did not show up', eventRef: 'AH-1234' });
+    expect(ref).toMatch(/^AH-SUP-/);
+    const [req] = await db.query(`SELECT id FROM support_requests WHERE token=$1`, [token]);
+    await staffReply(db, req.id, staff.id, 'Found it, it is now recorded.', false);
+    const [m] = await db.query(`SELECT recipient FROM messages_log WHERE purpose='support_reply'`);
+    expect(m.recipient).toBe('+256772111106');
+    await addRequesterMessage(db, token, 'Thank you!');
+    const v = await requestByToken(db, token);
+    expect(v!.status).toBe('open');
+    expect(v!.messages.map((x: any) => x.from_staff)).toEqual([false, true, false]);
+  });
+});

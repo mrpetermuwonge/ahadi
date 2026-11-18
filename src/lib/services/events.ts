@@ -110,6 +110,8 @@ export interface PledgeRow {
   message: string | null;
   messageStatus: string;
   createdAt: string;
+  /** Recorded by the committee: waiting for the pledger, confirmed, or "not my pledge". Null when they pledged themselves. */
+  recorded: 'pending' | 'confirmed' | 'disputed' | null;
 }
 
 export async function pledgeRows(db: Db, eventId: string): Promise<PledgeRow[]> {
@@ -134,6 +136,7 @@ export async function pledgeRows(db: Db, eventId: string): Promise<PledgeRow[]> 
       message: r.message,
       messageStatus: r.message_status,
       createdAt: new Date(r.created_at).toISOString(),
+      recorded: r.source === 'self' ? null : r.disputed_at ? 'disputed' : r.confirmed_at ? 'confirmed' : 'pending',
     };
   });
 }

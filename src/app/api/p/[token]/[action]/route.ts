@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { getDb } from '@/lib/db';
 import { deletePledgerData, exportPledgerData, pledgerChangeAmount } from '@/lib/services/pledges';
 import { DEVICE_COOKIE, canViewPledge } from '@/lib/services/pledgerAccess';
+import { confirmRecordedPledge, disputeRecordedPledge } from '@/lib/services/committeePledges';
 import { api, jsonError } from '@/lib/web';
 
 /**
@@ -22,6 +23,8 @@ export const POST = api(async (req, { params }: { params: { token: string; actio
     const { amount } = z.object({ amount: z.number().int().positive().max(1e12) }).parse(await req.json());
     return NextResponse.json(await pledgerChangeAmount(db, token, amount));
   }
+  if (action === 'confirm') return NextResponse.json(await confirmRecordedPledge(db, token));
+  if (action === 'dispute') return NextResponse.json(await disputeRecordedPledge(db, token));
   if (action === 'delete') {
     await deletePledgerData(db, token);
     return NextResponse.json({ ok: true });

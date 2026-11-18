@@ -12,6 +12,8 @@ import { runBackup, runRetention } from '@/lib/services/ops';
 import { reactivateAccount, renameAccount, signOutEverywhere, suspendAccount } from '@/lib/services/accounts';
 import { addPartner, deletePartner, updatePartner } from '@/lib/services/partners';
 import { setTemplate } from '@/lib/services/templates';
+import { hideUpdate } from '@/lib/services/engagement';
+import { setRequestStatus, staffReply } from '@/lib/services/supportRequests';
 import type { AdminPermission, AdminRole } from '@/lib/adminPermissions';
 import { api, apiAdmin, jsonError, requireStepUp } from '@/lib/web';
 
@@ -45,6 +47,9 @@ const NEEDS: Record<string, AdminPermission> = {
   'partner-delete': 'partners.manage',
   'event-cover': 'events.cover',
   'template-set': 'settings.edit',
+  'update-hide': 'updates.hide',
+  'support-reply': 'support.reply',
+  'support-status': 'support.reply',
 };
 const STEP_UP = new Set(['payout-review', 'settings', 'setting-decide', 'team-set', 'reassign-owner', 'refund', 'erase-pledger', 'account-suspend', 'account-reactivate', 'account-signout']);
 
@@ -185,6 +190,21 @@ export const POST = api(async (req, { params }: { params: { action: string } }) 
     case 'event-cover': {
       const b = z.object({ eventId: z.string().max(40), fileId: z.string().max(40).nullable() }).parse(body);
       await adminSetEventCover(db, b.eventId, user.id, b.fileId);
+      break;
+    }
+    case 'support-reply': {
+      const b = z.object({ requestId: z.string().max(40), body: z.string().max(2000), resolve: z.boolean() }).parse(body);
+      await staffReply(db, b.requestId, user.id, b.body, b.resolve);
+      break;
+    }
+    case 'support-status': {
+      const b = z.object({ requestId: z.string().max(40), status: z.enum(['open', 'waiting', 'resolved']).optional(), assignToMe: z.boolean().optional() }).parse(body);
+      await setRequestStatus(db, b.requestId, user.id, b);
+      break;
+    }
+    case 'update-hide': {
+      const b = z.object({ eventId: z.string().max(40), updateId: z.string().max(40) }).parse(body);
+      await hideUpdate(db, b.eventId, b.updateId, user.id, true);
       break;
     }
     case 'template-set': {

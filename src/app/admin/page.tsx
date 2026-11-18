@@ -10,10 +10,11 @@ import { getSettings, DEFAULT_SETTINGS } from '@/lib/settings';
 import { Logo } from '@/components/Brand';
 import { LangSwitcher } from '@/components/Ui';
 import { LogoutButton } from '@/app/app/LogoutButton';
-import { AdminButton, SettingsEditor, RunJobs, TeamForm, ReassignOwner, EraseForm, OpsButton, AccountActions, PartnerForm, ImageAction, TemplatesEditor } from './AdminClient';
+import { AdminButton, SettingsEditor, RunJobs, TeamForm, ReassignOwner, EraseForm, OpsButton, AccountActions, PartnerForm, ImageAction, TemplatesEditor, SupportReply } from './AdminClient';
 import { listTemplateOverrides } from '@/lib/services/templates';
 import { defaultMessage, EDITABLE_STAGES } from '@/lib/messages';
 import { findPledger, recentMessages } from '@/lib/services/support';
+import { listRequests, requestDetail } from '@/lib/services/supportRequests';
 import type { EventType } from '@/lib/eventTypes';
 import { ExportForm } from './ExportForm';
 import { accountDetail, listAccounts, type AccountKind } from '@/lib/services/accounts';
@@ -31,32 +32,32 @@ import type { Key } from '@/i18n';
 export const metadata = { title: 'Admin', robots: { index: false } };
 
 type Perms = Record<AdminPermission, boolean>;
-const TABS = ['overview', 'accounts', 'events', 'payments', 'flags', 'payouts', 'verifications', 'revenue', 'export', 'partners', 'settings', 'recon', 'privacy', 'system', 'audit', 'team'] as const;
+const TABS = ['overview', 'support', 'accounts', 'events', 'payments', 'flags', 'payouts', 'verifications', 'revenue', 'export', 'partners', 'settings', 'recon', 'privacy', 'system', 'audit', 'team'] as const;
 type Tab = (typeof TABS)[number];
 const TAB_KEY: Record<Tab, Key> = {
   overview: 'ax.overview', events: 'adm.events', flags: 'adm.flags', payouts: 'adm.payouts', verifications: 'adm.verifications',
   revenue: 'adm.revenue', settings: 'adm.settings', recon: 'adm.recon', audit: 'adm.audit', team: 'ax.team',
   payments: 'ax.payments', privacy: 'ax.privacy', system: 'ax.system',
-  accounts: 'ac.tab', export: 'xp.tab', partners: 'pt.tab',
+  accounts: 'ac.tab', export: 'xp.tab', partners: 'pt.tab', support: 'hp.adminTab',
 };
 /** Which permission lets a staff member open each tab. */
 const TAB_PERM: Record<Tab, AdminPermission> = {
   overview: 'admin.view', events: 'admin.view', flags: 'admin.view', payouts: 'payouts.view', verifications: 'admin.view',
   revenue: 'revenue.view', settings: 'admin.view', recon: 'admin.view', audit: 'audit.view', team: 'admin.view',
   payments: 'payments.view', privacy: 'admin.view', system: 'ops.view',
-  accounts: 'accounts.view', export: 'admin.view', partners: 'admin.view',
+  accounts: 'accounts.view', export: 'admin.view', partners: 'admin.view', support: 'support.view',
 };
 const PERIODS = [7, 30, 90, 365];
 /** Menu groups (sidebar on computers, one row on phones). */
 const GROUPS: { key: string; label: Key; tabs: Tab[] }[] = [
   { key: 'home', label: 'ax.g.home', tabs: ['overview'] },
-  { key: 'people', label: 'ax.g.people', tabs: ['accounts', 'team'] },
+  { key: 'people', label: 'ax.g.people', tabs: ['support', 'accounts', 'team'] },
   { key: 'events', label: 'ax.g.events', tabs: ['events', 'flags', 'verifications', 'partners'] },
   { key: 'money', label: 'ax.g.money', tabs: ['payments', 'payouts', 'revenue', 'recon'] },
   { key: 'data', label: 'ax.g.data', tabs: ['export', 'privacy', 'audit', 'settings', 'system'] },
 ];
 
-export default async function AdminPage({ searchParams }: { searchParams: { tab?: string; days?: string; q?: string; pq?: string; aq?: string; kind?: string; user?: string; pph?: string; failed?: string } }) {
+export default async function AdminPage({ searchParams }: { searchParams: { tab?: string; days?: string; q?: string; pq?: string; aq?: string; kind?: string; user?: string; pph?: string; failed?: string; req?: string; st?: string; mine?: string } }) {
   const user = await requireAdmin();
   const { t } = getT();
   const perms = adminPermissionsFor(user);
@@ -72,7 +73,8 @@ export default async function AdminPage({ searchParams }: { searchParams: { tab?
             (SELECT COUNT(*) FROM payouts WHERE status='in_review')::int AS payouts,
             (SELECT COUNT(*) FROM reconciliation_issues WHERE NOT resolved)::int AS recon,
             (SELECT COUNT(*) FROM setting_proposals WHERE status='pending')::int AS settings,
-            (SELECT COUNT(*) FROM events WHERE show_on_home AND home_approved IS NULL)::int AS events`,
+            (SELECT COUNT(*) FROM events WHERE show_on_home AND home_approved IS NULL)::int AS events,
+            (SELECT COUNT(*) FROM support_requests WHERE status='open')::int AS support`,
   );
   const badge = (x: Tab) => Number((q as Record<string, number>)[x] ?? 0);
   const groups = GROUPS.map((g) => ({ ...g, tabs: g.tabs.filter((x) => (allowed as readonly string[]).includes(x)) })).filter((g) => g.tabs.length);
@@ -145,6 +147,7 @@ export default async function AdminPage({ searchParams }: { searchParams: { tab?
         {tab === 'accounts' && (searchParams.user ? <AccountTab perms={perms} userId={searchParams.user} me={user.id} /> : <AccountsTab q={searchParams.aq ?? ''} kind={(searchParams.kind as AccountKind) ?? 'all'} pph={searchParams.pph ?? ''} fullPhones={PHONE_ROLES.includes(role)} />)}
         {tab === 'export' && <ExportForm datasets={datasetsFor(role)} analytics={ANALYTICS_ROLES.includes(role)} phonesAllowed={PHONE_ROLES.includes(role)} />}
         {tab === 'partners' && <PartnersTab perms={perms} />}
+        {tab === 'support' && (searchParams.req ? <SupportRequestTab perms={perms} id={searchParams.req} /> : <SupportTab status={searchParams.st ?? 'open'} mine={searchParams.mine === '1' ? user.id : null} />)}
       </main>
         </div>
       </div>
@@ -1032,6 +1035,81 @@ async function PartnersTab({ perms }: { perms: Perms }) {
         ))}
       </section>
       {can && <PartnerForm />}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ Support inbox */
+
+const SUPPORT_FILTERS = ['open', 'waiting', 'resolved', 'all'] as const;
+
+async function SupportTab({ status, mine }: { status: string; mine: string | null }) {
+  const { t } = getT();
+  const st = (SUPPORT_FILTERS as readonly string[]).includes(status) ? (status as (typeof SUPPORT_FILTERS)[number]) : 'open';
+  const rows = await listRequests(await getDb(), st, mine);
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-muted">{t('hp.adminHint')}</p>
+      <div className="flex flex-wrap gap-1">
+        {SUPPORT_FILTERS.map((x) => (
+          <Link key={x} href={`/admin?tab=support&st=${x}${mine ? '&mine=1' : ''}`} aria-current={x === st ? 'true' : undefined}
+            className={`chip min-h-[32px] px-3 text-sm ${x === st ? 'bg-brand text-white' : 'bg-card border border-line text-ink'}`}>{t(`hp.st.${x}` as Key)}</Link>
+        ))}
+        <Link href={`/admin?tab=support&st=${st}${mine ? '' : '&mine=1'}`} className={`chip min-h-[32px] px-3 text-sm ${mine ? 'bg-accent text-white' : 'bg-card border border-line text-ink'}`}>{t('hp.mine')}</Link>
+      </div>
+      {rows.length === 0 ? <Empty /> : (
+        <ul className="grid gap-2">
+          {rows.map((r) => (
+            <li key={r.id}>
+              <Link href={`/admin?tab=support&req=${r.id}`} className="card p-4 flex flex-wrap justify-between gap-2 tap hover:border-brand/40">
+                <span className="min-w-0">
+                  <span className="font-semibold">{r.ref} · {r.name}</span>
+                  <span className={`chip ml-2 text-[11px] ${r.topic === 'fraud' ? 'bg-bad/15 text-bad' : r.topic === 'payment' ? 'bg-accent/25 text-ink' : 'bg-line text-ink'}`}>{t(`hp.t.${r.topic}` as Key)}</span>
+                  <span className="block text-sm text-muted truncate max-w-xl">{r.last}</span>
+                </span>
+                <span className="text-right text-xs text-muted">
+                  <span className="block font-semibold">{t(`hp.st.${r.status}` as Key)}</span>
+                  {new Date(r.updated_at).toISOString().slice(0, 16).replace('T', ' ')}{r.assignee ? ` · ${r.assignee}` : ''}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+async function SupportRequestTab({ perms, id }: { perms: Perms; id: string }) {
+  const { t } = getT();
+  const d = await requestDetail(await getDb(), id);
+  if (!d) return <Empty />;
+  const r = d.request;
+  return (
+    <div className="space-y-4">
+      <Link href="/admin?tab=support" className="text-sm font-semibold text-brand">← {t('hp.allRequests')}</Link>
+      <section className="card p-5">
+        <div className="flex flex-wrap justify-between gap-2">
+          <div>
+            <h2 className="text-xl font-bold">{r.ref} · {r.name}</h2>
+            <p className="text-sm text-muted">{t(`hp.t.${r.topic}` as Key)} · {r.phone ? formatPhone(r.phone) : r.email}{r.event_ref ? ` · ${r.event_ref}` : ''}</p>
+          </div>
+          <div className="text-right text-sm">
+            <span className="chip bg-brand-soft text-brand">{t(`hp.st.${r.status}` as Key)}</span>
+            <p className="text-xs text-muted mt-1">{r.assignee ? t('hp.assignedTo', { n: r.assignee }) : t('hp.unassigned')}</p>
+          </div>
+        </div>
+        {r.phone && <p className="text-sm mt-2"><Link className="underline" href={`/admin?tab=accounts&pph=${encodeURIComponent(r.phone)}`}>{t('hp.lookUp')}</Link></p>}
+      </section>
+      <ul className="space-y-3">
+        {d.messages.map((m, i) => (
+          <li key={i} className={`rounded-2xl p-4 ${m.from_staff ? 'bg-brand-soft ml-8' : 'bg-card border border-line mr-8'}`}>
+            <p className="text-xs text-muted">{m.from_staff ? (m.author ?? 'Ahadi') : r.name} · {new Date(m.created_at).toISOString().slice(0, 16).replace('T', ' ')}</p>
+            <p className="whitespace-pre-line mt-1">{m.body}</p>
+          </li>
+        ))}
+      </ul>
+      {perms['support.reply'] ? <SupportReply requestId={r.id} status={r.status} /> : null}
     </div>
   );
 }

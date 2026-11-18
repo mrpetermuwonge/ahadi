@@ -6,6 +6,8 @@ import { newId } from '@/lib/ids';
 import { addMember, EventError, eventAccess, removeMember, transferOwnership, updateEventDetails, updateEventSettings } from '@/lib/services/events';
 import { decideChangeRequest, organizerChangeAmount, recordManualPayment, reverseManualEntry } from '@/lib/services/pledges';
 import { requestPayout, secondApprove } from '@/lib/services/payouts';
+import { recordPledges } from '@/lib/services/committeePledges';
+import { hideUpdate, postUpdate, remindOwing } from '@/lib/services/engagement';
 import { startPurchase } from '@/lib/services/payments';
 import { getSettings } from '@/lib/settings';
 import { normalizePhone } from '@/lib/phone';
@@ -32,6 +34,10 @@ const NEEDS: Record<string, Permission> = {
   'buy-credits': 'billing.manage',
   verification: 'verification.manage',
   'transfer-owner': 'committee.transfer',
+  'record-pledge': 'pledges.record',
+  'remind-owing': 'pledgers.remind',
+  'post-update': 'updates.post',
+  'remove-update': 'updates.post',
 };
 
 /** Actions that move money or change who controls the event: a fresh one-time code is required first. */
@@ -103,6 +109,22 @@ export const POST = api(async (req, { params }: { params: { id: string; action: 
         details: z.record(z.string().max(200)),
       }).parse(body);
       await updateEventDetails(db, event.id, user.id, b);
+      break;
+    }
+    case 'record-pledge': {
+      const b = z.object({ name: z.string().max(80), phone: z.string().max(30), amount: z.number().int().positive().max(1e12), dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable() }).parse(body);
+      return NextResponse.json(await recordPledges(db, event.id, user.id, [b], 'committee'));
+    }
+    case 'remind-owing': {
+      return NextResponse.json(await remindOwing(db, event.id, user.id));
+    }
+    case 'post-update': {
+      const b = z.object({ body: z.string().max(1500), imageFileId: z.string().max(40).nullable(), notifyPledgers: z.boolean() }).parse(body);
+      return NextResponse.json(await postUpdate(db, event.id, user.id, b));
+    }
+    case 'remove-update': {
+      const b = z.object({ updateId: z.string().max(40) }).parse(body);
+      await hideUpdate(db, event.id, b.updateId, user.id, false);
       break;
     }
     case 'transfer-owner': {

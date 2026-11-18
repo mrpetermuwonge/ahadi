@@ -1,8 +1,28 @@
-# Ahadi v1.25 – Changes
+# Ahadi v1.26 – Changes
 
-*18 Nov 2026 · Demo logos and event pictures, admin portal reorganised and completed*
+*18 Nov 2026 · Meeting pledges, link previews, remind everyone, updates to supporters, Help and Support*
 
-## Latest changes in this version (v1.25)
+## Latest changes in this version (v1.26)
+
+- Pledges made at a meeting: organizers and treasurers can add a pledge for someone, or upload an Excel/CSV list (Name, Phone, Amount, optional Due date; sample file included; checked before anything is saved; up to 500 rows). Each person gets a WhatsApp/SMS with their own link to confirm, pay, or say "This is not my pledge" (then it is removed from the totals and reminders stop; not possible once something was paid). Recorded pledges are marked on the dashboard (waiting / confirmed / not my pledge).
+- Link previews: sharing an event on WhatsApp, Facebook or SMS now shows the event's picture, name and a short line. Events without a picture get a branded preview image with their name. (Previews work once APP_URL is the real public address.)
+- "Remind everyone who still owes": one button sends a WhatsApp/SMS reminder to every pledger with a balance, with a count and total first. At most once a day per event, never at night (quiet hours).
+- Updates to supporters: the organizer posts news (text and an optional photo) that shows on the event page under "Updates from the organizer", and can also message every pledger (at most once a day, never at night). The organizer can remove an update; Ahadi staff (Super admin, Trust & safety) can hide an inappropriate one.
+- Help page (/help): 14 answers to common questions in four groups, and "Contact Ahadi" with a topic (payment problem, my pledge, my event, account, fraud, other). The person gets a reference number and a private link to follow the conversation; linked from the footer, My pledges and the personal pledge page.
+- Admin → Support inbox (all staff; Support may answer): fraud and payment problems first, filters (waiting, answered, resolved, assigned to me), assign to me, answer (the person is told on WhatsApp or email), resolve or reopen, and a link to look up the person's pledges and messages. Waiting requests are counted in the menu.
+- 4 new WhatsApp templates (recorded, nudge, update, support_reply; 19 in total, see docs/whatsapp-templates.md), editable SMS wording for each.
+- Database change: migration 013. 5 new unit tests (78 in total); browser tests now 17, all passing.
+
+---
+
+## Earlier versions (for reference)
+
+Each section below happened in an earlier version, shown newest first.
+
+<!-- Changes made in v1.25 (18 Nov 2026) -->
+### v1.25 · 18 Nov 2026 · Demo logos and event pictures, admin portal reorganised and completed
+
+> Happened in **v1.25**, not in this version.
 
 - Demo logos for the 8 demo partners (simple illustrated badges, one per partner) and demo pictures on 7 of the 8 events (illustrations matched to the event: rings for the wedding, a candle for the funeral, a heart line for hospital appeals, a church at sunset, a water drop for the boreholes, a graduation cap). Peter's graduation keeps its real photo. Partner logos in the homepage strip are now larger (48 px).
 - Admin portal reorganised: a grouped sidebar on computers (Home; People; Events & trust; Money; Data & system) and one scrolling row on phones, with counts of waiting work (reports, documents, withdrawals to review, reconciliation, settings to approve, homepage requests). Each page has a clear title; on phones the staff role badge moves under the title so the top bar fits.
@@ -12,12 +32,7 @@
 - New support tools: find a pledger by phone (their pledges, balances and the messages sent to them) in Admin → Accounts, and a recent-messages log with a "failed only" filter in Admin → System.
 - Checked as every staff role (Super admin, Finance, Trust & safety, Support): every tab, every account page, every event's admin view and all searches load with no errors, no browser errors and nothing wider than the screen.
 - Fixed: the Accounts table said "Your name" instead of "Name"; "Log out" no longer wraps on phones. 3 new unit tests (73 in total).
-
----
-
-## Earlier versions (for reference)
-
-Each section below happened in an earlier version, shown newest first.
+<!-- End of v1.25 -->
 
 <!-- Changes made in v1.24 (18 Nov 2026) -->
 ### v1.24 · 18 Nov 2026 · Choose-what-you-need data export, super admin control of all accounts, partners strip

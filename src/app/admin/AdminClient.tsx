@@ -426,3 +426,40 @@ export function TemplatesEditor({ defaults, overrides, stages }: { defaults: Rec
     </section>
   );
 }
+
+/** Staff answer a support request (the person is told by WhatsApp or email), or change its status. */
+export function SupportReply({ requestId, status }: { requestId: string; status: string }) {
+  const { t } = useT();
+  const router = useRouter();
+  const [body, setBody] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ kind: 'ok' | 'bad'; text: string } | null>(null);
+  const send = async (resolve: boolean) => {
+    setBusy(true); setMsg(null);
+    const r = await apiSend('/api/admin/support-reply', { requestId, body, resolve });
+    setBusy(false);
+    if (!r.ok) return setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
+    setBody('');
+    setMsg({ kind: 'ok', text: t('hp.replied') });
+    router.refresh();
+  };
+  const setStatus = async (change: object) => {
+    const r = await apiSend('/api/admin/support-status', { requestId, ...change });
+    if (r.ok) router.refresh(); else setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
+  };
+  return (
+    <section className="card p-5 space-y-3">
+      <label className="label" htmlFor="sr-body">{t('hp.reply')}</label>
+      <textarea id="sr-body" className="input" rows={4} maxLength={2000} value={body} onChange={(e) => setBody(e.target.value)} />
+      {msg && <Alert kind={msg.kind}>{msg.text}</Alert>}
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className="btn-primary" disabled={busy || body.trim().length < 2} onClick={() => send(false)}>{busy ? t('a.loading') : t('hp.sendReply')}</button>
+        <button type="button" className="btn-outline" disabled={busy || body.trim().length < 2} onClick={() => send(true)}>{t('hp.replyResolve')}</button>
+        <button type="button" className="btn-ghost" onClick={() => setStatus({ assignToMe: true })}>{t('hp.assignMe')}</button>
+        {status !== 'resolved'
+          ? <button type="button" className="btn-ghost" onClick={() => setStatus({ status: 'resolved' })}>{t('hp.markResolved')}</button>
+          : <button type="button" className="btn-ghost" onClick={() => setStatus({ status: 'open' })}>{t('hp.reopen')}</button>}
+      </div>
+    </section>
+  );
+}
