@@ -372,5 +372,15 @@
       "Ahadi contact details: www.ahadi.tech, 0200 919 289, ahadi@gmail.com (kept in one place: src/lib/contact.ts).",
       "1 new WhatsApp template (recorded_paid; 23 in total, see docs/whatsapp-templates.md). Small fix: totals never show \"-0\". 6 new unit tests (83 in total); browser tests now 18, all passing."
     ]
+  },
+  {
+    "version": "1.28",
+    "date": "18 Nov 2026",
+    "title": "Partners strip fits the page",
+    "code_saved": true,
+    "changes": [
+      "Homepage \"Our partners\" strip is now the same width as the rest of the page (it no longer runs from edge to edge of the screen) and fades out softly at both ends.",
+      "Partner logos are a little bigger (56px instead of 48px), with slightly taller cards."
+    ]
   }
 ]

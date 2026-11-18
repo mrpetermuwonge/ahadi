@@ -1,8 +1,22 @@
-# Ahadi v1.27 – Changes
+# Ahadi v1.28 – Changes
 
-*18 Nov 2026 · Phone numbers fix themselves, meeting pledges already paid, Contact Ahadi on the homepage*
+*18 Nov 2026 · Partners strip fits the page*
 
-## Latest changes in this version (v1.27)
+## Latest changes in this version (v1.28)
+
+- Homepage "Our partners" strip is now the same width as the rest of the page (it no longer runs from edge to edge of the screen) and fades out softly at both ends.
+- Partner logos are a little bigger (56px instead of 48px), with slightly taller cards.
+
+---
+
+## Earlier versions (for reference)
+
+Each section below happened in an earlier version, shown newest first.
+
+<!-- Changes made in v1.27 (18 Nov 2026) -->
+### v1.27 · 18 Nov 2026 · Phone numbers fix themselves, meeting pledges already paid, Contact Ahadi on the homepage
+
+> Happened in **v1.27**, not in this version.
 
 - Phone numbers: every Ugandan 07xx number is now accepted (073x and other new ranges were refused before). Numbers tidy themselves when you leave the box: 0734545678, +256734545678, 256 734-545-678 and +256 0734… all become 0734 545 678. Works on every phone box (pledging, login, committee, meeting pledges, admin).
 - Meeting pledges can now be recorded as "Not yet", "Paid in full" or "Paid part", with how it was paid (cash, mobile money to a committee member, bank). Excel/CSV lists can have an optional Paid column.
@@ -13,12 +27,7 @@
 - Contact Ahadi on the homepage: a new section with call, email and website tiles, quick topics and the contact form. Help page shows the same contact tiles next to the form; the footer shows the contact details and a "Contact us" link; the privacy notice names the contact email and phone.
 - Ahadi contact details: www.ahadi.tech, 0200 919 289, ahadi@gmail.com (kept in one place: src/lib/contact.ts).
 - 1 new WhatsApp template (recorded_paid; 23 in total, see docs/whatsapp-templates.md). Small fix: totals never show "-0". 6 new unit tests (83 in total); browser tests now 18, all passing.
-
----
-
-## Earlier versions (for reference)
-
-Each section below happened in an earlier version, shown newest first.
+<!-- End of v1.27 -->
 
 <!-- Changes made in v1.26 (18 Nov 2026) -->
 ### v1.26 · 18 Nov 2026 · Meeting pledges, link previews, remind everyone, updates to supporters, Help and Support

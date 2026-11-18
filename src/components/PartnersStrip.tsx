@@ -13,12 +13,12 @@ export function PartnersStrip({ partners }: { partners: PartnerItem[] }) {
   const loop = [...partners, ...partners]; // two copies so the slide joins up seamlessly
   const card = (p: PartnerItem, i: number, hidden: boolean) => {
     const inner = (
-      <span className="flex items-center gap-3 rounded-2xl border border-line bg-card px-4 py-3 min-w-[240px] h-[76px]">
+      <span className="flex items-center gap-3 rounded-2xl border border-line bg-card px-4 py-3 min-w-[250px] h-[84px]">
         {p.logoFileId ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={`/api/files/${p.logoFileId}`} alt="" className="w-12 h-12 rounded-xl object-contain shrink-0" loading="lazy" />
+          <img src={`/api/files/${p.logoFileId}`} alt="" className="w-14 h-14 rounded-xl object-contain shrink-0" loading="lazy" />
         ) : (
-          <span aria-hidden className="w-12 h-12 shrink-0 rounded-xl bg-brand-soft text-brand font-extrabold flex items-center justify-center text-sm">
+          <span aria-hidden className="w-14 h-14 shrink-0 rounded-xl bg-brand-soft text-brand font-extrabold flex items-center justify-center text-sm">
             {p.name.split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase()}
           </span>
         )}
@@ -39,18 +39,21 @@ export function PartnersStrip({ partners }: { partners: PartnerItem[] }) {
       <div className="mx-auto max-w-5xl px-4">
         <h2 id="partners-title" className="text-sm font-bold uppercase tracking-widest text-muted text-center">{t('pt.homeTitle')}</h2>
       </div>
+      {/* Same width as the rest of the page; the logos fade out at both edges. */}
+      <div className="mx-auto max-w-5xl px-4">
       <div className="partners-viewport mt-4 overflow-hidden">
-        <ul className="partners-track flex gap-3 w-max px-4">
+        <ul className="partners-track flex gap-3 w-max">
           {loop.map((p, i) => card(p, i, i >= partners.length))}
         </ul>
       </div>
+      </div>
       <style>{`
-        .partners-viewport { mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); }
+        .partners-viewport { -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent); mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent); }
         .partners-track { animation: partners-slide ${Math.max(20, partners.length * 5)}s linear infinite; }
         .partners-viewport:hover .partners-track, .partners-viewport:focus-within .partners-track { animation-play-state: paused; }
         @keyframes partners-slide { from { transform: translateX(0); } to { transform: translateX(calc(-50% - 6px)); } }
         @media (prefers-reduced-motion: reduce) {
-          .partners-viewport { overflow-x: auto; mask-image: none; }
+          .partners-viewport { overflow-x: auto; -webkit-mask-image: none; mask-image: none; }
           .partners-track { animation: none; }
         }
       `}</style>
