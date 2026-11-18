@@ -31,7 +31,7 @@ export async function runRoleTests(BASE) {
       console.log(`  ✓ ${name}`);
     } catch (e) {
       results.push([false, name]);
-      console.log(`  ✗ ${name}\n      ${String(e.message).split('\n')[0]}`);
+      console.log(`  ✗ ${name}\n      ${String(e.message).split('\n').filter((l) => l.trim()).slice(0, 3).join('\n      ')}`);
       await page.screenshot({ path: `.data/e2e-fail-${results.length}.png` }).catch(() => {});
     } finally {
       await ctx.close();
@@ -231,10 +231,7 @@ export async function runRoleTests(BASE) {
     const id = await eventId(page);
     await page.goto(`/app/e/${id}`);
     // The first visit compiles the page; click again until the form has opened (the page is interactive).
-    for (let i = 0; i < 10 && !(await page.getByLabel('Your name').isVisible()); i++) {
-      await page.getByRole('button', { name: 'Add one pledge' }).click();
-      await page.waitForTimeout(1000);
-    }
+    await openAddOne(page);
     await page.getByLabel('Your name').fill('Meeting Guest');
     await page.getByLabel('Your phone number').fill('0772 777 001');
     await page.getByLabel('How much?').fill('75000');
@@ -259,6 +256,29 @@ export async function runRoleTests(BASE) {
     await page.getByText('We reached half of our target').waitFor();
     const og = await page.locator('meta[property="og:image"]').getAttribute('content');
     expect(!!og && /\/api\/(files|og)/.test(og), 'no link preview image');
+  });
+
+  await test('meeting pledge already paid: only the treasurer records the cash; it shows as held by the committee', async (page) => {
+    await login(page, ORGANIZER);
+    let id = await eventId(page);
+    const refused = await page.evaluate(async (id) => (await (await fetch(`/api/events/${id}/record-pledge`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Cash Try', phone: '0734777010', amount: 10000, dueDate: null, paid: 10000, paidVia: 'cash' }) })).json()), id);
+    expect(refused.added === 0 && refused.errors?.[0]?.error === 'cash_needs_treasurer', `organizer recorded cash: ${JSON.stringify(refused)}`);
+    await login(page, TREASURER);
+    id = await eventId(page);
+    await page.goto(`/app/e/${id}`);
+    await openAddOne(page);
+    await page.getByLabel('Your name').fill('Cash Giver');
+    await page.getByLabel('Your phone number').fill('0734777011'); // 073 number typed without spaces
+    await page.getByLabel('How much?').fill('40000');
+    await page.getByLabel('How much?').click();
+    expect((await page.getByLabel('Your phone number').inputValue()) === '0734 777 011', 'phone not tidied');
+    await page.getByRole('radio', { name: 'Paid part' }).click();
+    await page.getByLabel('Amount already paid').fill('15000');
+    await page.getByLabel('Paid to the committee by').selectOption('cash');
+    await page.getByRole('button', { name: 'Add pledge and notify' }).click();
+    await page.getByText('received by the committee').waitFor();
+    await page.reload();
+    await page.getByText('Held by the committee').waitFor();
   });
 
   await test('help: contact Ahadi, support answers, the person sees the answer', async (page) => {
@@ -291,4 +311,13 @@ export async function runRoleTests(BASE) {
   const failed = results.filter((r) => !r[0]).length;
   console.log(`\n${results.length - failed} passed, ${failed} failed`);
   return failed;
+}
+
+/** Open "Add one pledge". The first visit compiles the page, so a click can come before it is interactive. */
+async function openAddOne(page) {
+  for (let i = 0; i < 10; i++) {
+    if (await page.locator('#rp-name').isVisible()) return;
+    await page.getByRole('button', { name: 'Add one pledge' }).click();
+    try { await page.locator('#rp-name').waitFor({ timeout: 4000 }); return; } catch { /* not interactive yet: try again */ }
+  }
 }

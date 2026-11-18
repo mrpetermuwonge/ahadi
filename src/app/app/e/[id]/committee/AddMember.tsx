@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useT } from '@/components/I18n';
 import { Alert } from '@/components/Ui';
 import { apiSend } from '@/components/client-utils';
+import { tidyPhone } from '@/lib/phone';
 
 export function AddMember({ eventId }: { eventId: string }) {
   const { t } = useT();
@@ -29,7 +30,7 @@ export function AddMember({ eventId }: { eventId: string }) {
       <h2 className="font-bold">{t('com.add')}</h2>
       <div>
         <label className="label" htmlFor="c-phone">{t('com.phone')}</label>
-        <input id="c-phone" className="input" inputMode="tel" placeholder="0772 123 456" required value={phone} onChange={(e) => setPhone(e.target.value)} />
+        <input id="c-phone" className="input" inputMode="tel" placeholder="0772 123 456" required value={phone} onChange={(e) => setPhone(e.target.value)} onBlur={(e) => setPhone(tidyPhone(e.target.value))} />
       </div>
       <fieldset>
         <legend className="label">{t('com.role')}</legend>

@@ -1,14 +1,23 @@
 import Link from 'next/link';
 import { getT } from '@/i18n/server';
+import { CONTACT } from '@/lib/contact';
 
 export function Footer() {
   const { t } = getT();
   return (
     <footer className="border-t border-line/60 py-6 text-sm text-muted">
       <div className="mx-auto max-w-5xl px-4 flex flex-wrap gap-4 justify-between">
-        <span>© Ahadi · {t('footer.made')}</span>
+        <span className="flex flex-col gap-1">
+          <span>© Ahadi · {t('footer.made')}</span>
+          <span className="flex flex-wrap gap-x-3 gap-y-1">
+            <a className="hover:text-brand" href={CONTACT.phoneHref}>{CONTACT.phone}</a>
+            <a className="hover:text-brand" href={CONTACT.emailHref}>{CONTACT.email}</a>
+            <a className="hover:text-brand" href={CONTACT.websiteHref} target="_blank" rel="noopener noreferrer">{CONTACT.website}</a>
+          </span>
+        </span>
         <span className="flex gap-4">
           <Link className="underline" href="/help">{t('hp.nav')}</Link>
+          <Link className="underline" href="/#contact">{t('ct.nav')}</Link>
           <Link className="underline" href="/my">{t('nav.myPledges')}</Link>
           <Link className="underline" href="/privacy">{t('legal.privacy')}</Link>
           <Link className="underline" href="/terms">{t('legal.terms')}</Link>

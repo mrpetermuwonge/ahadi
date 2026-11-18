@@ -4,6 +4,7 @@ import { useT } from './I18n';
 import { Alert, StateChip } from './Ui';
 import { apiGet, apiSend, digits, fmtMoney } from './client-utils';
 import { TypeIcon } from './Brand';
+import { tidyPhone } from '@/lib/phone';
 
 export interface SummaryItem {
   token: string; eventTitle: string; eventSlug: string; eventType: string; coverFileId: string | null; open: boolean; currency: string;
@@ -131,7 +132,7 @@ export function VerifyPanel({ phone: givenPhone, onVerified, title, hint }: {
         <div>
           <label htmlFor="v-phone" className="label">{t('pf.phone')}</label>
           <input id="v-phone" className="input" inputMode="tel" autoComplete="tel" placeholder="0772 123 456" value={phone}
-            onKeyDown={enter(() => { if (!sent) send(); })} onChange={(e) => setPhone(e.target.value)} />
+            onKeyDown={enter(() => { if (!sent) send(); })} onChange={(e) => setPhone(e.target.value)} onBlur={(e) => setPhone(tidyPhone(e.target.value))} />
         </div>
       )}
       {digits(number).length < 9 ? (

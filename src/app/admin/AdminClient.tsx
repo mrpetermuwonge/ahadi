@@ -5,6 +5,7 @@ import { useT } from '@/components/I18n';
 import { Alert } from '@/components/Ui';
 import { apiSend } from '@/components/client-utils';
 import { compressImage, uploadFile } from '@/components/upload';
+import { tidyPhone } from '@/lib/phone';
 
 /** One admin action. Sensitive ones ask for a fresh code first (handled by apiSend + the "Confirm it's you" dialog). */
 export function AdminButton({ action, body, label, primary }: { action: string; body: unknown; label: string; primary?: boolean }) {
@@ -148,7 +149,7 @@ export function TeamForm() {
       <p className="text-sm text-muted">{t('ax.teamHint')}</p>
       <div>
         <label className="label" htmlFor="team-phone">{t('acct.phone')}</label>
-        <input id="team-phone" className="input" inputMode="tel" placeholder="0772 123 456" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        <input id="team-phone" className="input" inputMode="tel" placeholder="0772 123 456" value={phone} onChange={(e) => setPhone(e.target.value)} onBlur={(e) => setPhone(tidyPhone(e.target.value))} />
       </div>
       <div>
         <label className="label" htmlFor="team-role">{t('ax.adminRole')}</label>
@@ -176,7 +177,7 @@ export function ReassignOwner({ eventId }: { eventId: string }) {
   return (
     <div className="mt-2 text-left rounded-xl border-2 border-accent/60 bg-accent-soft/40 p-3 space-y-2 min-w-[260px]">
       <p className="text-xs font-semibold">{t('ax.recoverHint')}</p>
-      <input className="input" inputMode="tel" placeholder={t('ax.newOrganizerPhone')} value={phone} onChange={(e) => setPhone(e.target.value)} aria-label={t('ax.newOrganizerPhone')} />
+      <input className="input" inputMode="tel" placeholder={t('ax.newOrganizerPhone')} value={phone} onChange={(e) => setPhone(e.target.value)} onBlur={(e) => setPhone(tidyPhone(e.target.value))} aria-label={t('ax.newOrganizerPhone')} />
       <textarea className="input" rows={2} placeholder={t('ax.recoverReason')} value={reason} onChange={(e) => setReason(e.target.value)} aria-label={t('ax.recoverReason')} />
       {error && error !== 'step_up_cancelled' && <p role="alert" className="text-xs text-bad">{t(`err.${error}` as any)}</p>}
       <div className="flex gap-2">
@@ -219,7 +220,7 @@ export function EraseForm() {
       <p className="text-sm text-muted">{t('ax.eraseHint')}</p>
       <div>
         <label className="label" htmlFor="erase-phone">{t('acct.phone')}</label>
-        <input id="erase-phone" className="input" inputMode="tel" placeholder="0772 123 456" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        <input id="erase-phone" className="input" inputMode="tel" placeholder="0772 123 456" value={phone} onChange={(e) => setPhone(e.target.value)} onBlur={(e) => setPhone(tidyPhone(e.target.value))} />
       </div>
       {msg && <Alert kind={msg.kind}>{msg.text}</Alert>}
       <button className="btn-outline text-bad" disabled={busy || phone.length < 9}>{busy ? t('a.loading') : t('ax.eraseButton')}</button>

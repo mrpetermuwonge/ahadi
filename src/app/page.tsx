@@ -7,6 +7,8 @@ import type { Key } from '@/i18n';
 import { Footer } from '@/components/Footer';
 import { FeaturedEvents } from '@/components/FeaturedEvents';
 import { PartnersStrip } from '@/components/PartnersStrip';
+import { ContactCards } from '@/components/ContactCards';
+import { ContactForm } from '@/app/help/ContactForm';
 import { publicPartners } from '@/lib/services/partners';
 import { EndPledgerSession } from '@/components/PledgerAccess';
 import { featuredEvents } from '@/lib/services/events';
@@ -127,6 +129,33 @@ export default async function Landing() {
         </section>
 
         <PartnersStrip partners={partners} />
+
+        {/* Contact Ahadi: call, email, website, or send a message right here (answered in the Support inbox). */}
+        <section id="contact" aria-labelledby="contact-title" className="scroll-mt-4 px-4 py-12">
+          <div className="relative mx-auto max-w-5xl overflow-hidden rounded-[2rem] text-white shadow-xl"
+            style={{ background: 'linear-gradient(135deg, #0D5C54 0%, #0A4740 60%, #7a5a1c 130%)' }}>
+            <div aria-hidden className="pointer-events-none absolute -top-24 -right-24 w-72 h-72 rounded-full bg-[#F6C76A]/20 blur-3xl" />
+            <div aria-hidden className="pointer-events-none absolute -bottom-28 -left-20 w-80 h-80 rounded-full bg-white/10 blur-3xl" />
+            <div className="relative grid md:grid-cols-[1fr,1.1fr] gap-8 p-6 sm:p-10">
+              <div className="flex flex-col">
+                <span className="inline-flex w-fit items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold tracking-wide uppercase text-[#F6C76A]">
+                  <span className="relative flex w-2 h-2"><span className="absolute inline-flex h-full w-full rounded-full bg-[#F6C76A] opacity-75 motion-safe:animate-ping" /><span className="relative inline-flex w-2 h-2 rounded-full bg-[#F6C76A]" /></span>
+                  {t('ct.kicker')}
+                </span>
+                <h2 id="contact-title" className="mt-4 text-3xl sm:text-4xl font-extrabold leading-tight">{t('ct.title')}</h2>
+                <p className="mt-3 text-white/80">{t('ct.text')}</p>
+                <div className="mt-6"><ContactCards tone="dark" labels={{ call: t('ct.call'), email: t('ct.email'), web: t('ct.web') }} /></div>
+                <div className="mt-6 flex flex-wrap gap-2">
+                  {(['payment', 'pledge', 'event', 'fraud'] as const).map((k) => (
+                    <Link key={k} href={`/help?topic=${k}#contact`} className="rounded-full bg-white/10 hover:bg-white/20 ring-1 ring-white/20 px-3 py-1.5 text-sm">{t(`hp.t.${k}` as Key)}</Link>
+                  ))}
+                  <Link href="/help" className="rounded-full bg-[#F6C76A] text-[#0A4740] px-3 py-1.5 text-sm font-semibold">{t('ct.faq')} →</Link>
+                </div>
+              </div>
+              <div className="text-ink"><ContactForm /></div>
+            </div>
+          </div>
+        </section>
       </main>
       <Footer />
     </div>

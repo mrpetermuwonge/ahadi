@@ -6,6 +6,7 @@ import { BackLink } from '@/components/BackLink';
 import { Footer } from '@/components/Footer';
 import type { Key } from '@/i18n';
 import { ContactForm } from './ContactForm';
+import { ContactCards } from '@/components/ContactCards';
 
 export const metadata = { title: 'Help' };
 
@@ -44,7 +45,11 @@ export default function HelpPage({ searchParams }: { searchParams: { topic?: str
             </div>
           </section>
         ))}
-        <div id="contact" className="scroll-mt-4">
+        <div id="contact" className="scroll-mt-4 grid md:grid-cols-[1fr,1.4fr] gap-4 items-start">
+          <div className="space-y-3">
+            <h2 className="text-lg font-bold">{t('ct.reach')}</h2>
+            <ContactCards labels={{ call: t('ct.call'), email: t('ct.email'), web: t('ct.web') }} />
+          </div>
           <ContactForm initialTopic={searchParams.topic} />
         </div>
         <p className="text-sm text-muted">{t('hp.privacy')} <Link className="underline" href="/privacy">{t('hp.privacyLink')}</Link></p>

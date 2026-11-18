@@ -63,6 +63,7 @@ export default async function PledgePage({ params }: { params: { token: string }
             open: p.event_status === 'active' && !p.frozen,
             pendingChange: v.pendingChange ? Number(v.pendingChange.new_amount) : null,
             payments: v.payments.map((x) => ({ id: x.id, receiptNo: x.receipt_no, amount: Number(x.pledge_credit), status: x.status, date: new Date(x.created_at).toISOString().slice(0, 10) })),
+            offline: v.offline.map((x) => ({ id: x.id, amount: Number(x.amount), date: new Date(x.created_at).toISOString().slice(0, 10) })),
             noun: tpl.noun,
             recorded: p.source === 'self' ? null : p.disputed_at ? 'disputed' : p.confirmed_at ? 'confirmed' : 'pending',
           }}

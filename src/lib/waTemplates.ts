@@ -9,7 +9,7 @@
  * are separated by text. Celebratory (warm) and hospital/funeral (calm) events have separate wording.
  * Luganda is not a WhatsApp template language, so Luganda speakers receive the English template.
  */
-export type WaStage = 'pledged' | 'before' | 'due' | 'after' | 'thanks' | 'milestone' | 'invite' | 'payout_requested' | 'role_changed' | 'owner_changed' | 'recorded' | 'nudge' | 'update' | 'support_reply';
+export type WaStage = 'pledged' | 'before' | 'due' | 'after' | 'thanks' | 'milestone' | 'invite' | 'payout_requested' | 'role_changed' | 'owner_changed' | 'recorded' | 'recorded_paid' | 'nudge' | 'update' | 'support_reply';
 export type WaVariant = 'warm' | 'calm';
 export type WaLang = 'en' | 'sw';
 
@@ -26,6 +26,7 @@ export const WA_PARAMS: Record<WaStage, string[]> = {
   role_changed: ['event', 'role', 'link'],
   owner_changed: ['event', 'link'],
   recorded: ['name', 'amount', 'event', 'link'],
+  recorded_paid: ['name', 'amount', 'event', 'paid', 'link'],
   nudge: ['name', 'balance', 'event', 'link'],
   update: ['event', 'link'],
   support_reply: ['ref', 'link'],
@@ -48,6 +49,7 @@ export const WA_BODIES: Bodies = {
       milestone: 'Good news: {event} has reached {percent}% of its target. See your dashboard: {link} Ahadi.',
       invite: 'You have been added to the committee of {event} on Ahadi. Log in with this phone number: {link} Welcome!',
       recorded: 'Hello {name}, the committee recorded your pledge of {amount} to {event} on Ahadi. Please confirm it or tell us if it is wrong: {link} Thank you!',
+      recorded_paid: 'Hello {name}, the committee recorded your pledge of {amount} to {event} on Ahadi, and that you have already given {paid}. Please confirm it or tell us if it is wrong: {link} Thank you!',
       nudge: 'Hello {name}, a friendly reminder from {event}: you still have {balance} to pay. Pay here: {link} Thank you!',
       update: 'There is a new update from {event} on Ahadi. Read it here: {link} Thank you for your support.',
       support_reply: 'Ahadi support replied to your request {ref}. Read and answer here: {link} Thank you.',
@@ -64,6 +66,7 @@ export const WA_BODIES: Bodies = {
       milestone: 'Good news: {event} has reached {percent}% of its target. See your dashboard: {link} Ahadi.',
       invite: 'You have been added to the committee of {event} on Ahadi. Log in with this phone number: {link} Welcome!',
       recorded: 'Hello {name}. The family recorded your support of {amount} for {event} on Ahadi. Please confirm it or tell us if it is wrong: {link} Thank you.',
+      recorded_paid: 'Hello {name}. The family recorded your support of {amount} for {event} on Ahadi, and that you have already given {paid}. Please confirm it or tell us if it is wrong: {link} Thank you.',
       nudge: 'Hello {name}. A gentle reminder for {event}: {balance} of your support is still open. You can pay here: {link} Thank you.',
       update: 'There is a new update from {event} on Ahadi. Read it here: {link} Thank you for your support.',
       support_reply: 'Ahadi support replied to your request {ref}. Read and answer here: {link} Thank you.',
@@ -82,6 +85,7 @@ export const WA_BODIES: Bodies = {
       milestone: 'Habari njema: {event} imefikia {percent}% ya lengo. Tazama dashibodi: {link} Ahadi.',
       invite: 'Umeongezwa kwenye kamati ya {event} kwenye Ahadi. Ingia kwa namba hii ya simu: {link} Karibu!',
       recorded: 'Habari {name}, kamati imerekodi ahadi yako ya {amount} kwa {event} kwenye Ahadi. Tafadhali ithibitishe au tuambie kama si sahihi: {link} Asante!',
+      recorded_paid: 'Habari {name}, kamati imerekodi ahadi yako ya {amount} kwa {event} kwenye Ahadi, na kwamba tayari umetoa {paid}. Tafadhali ithibitishe au tuambie kama si sahihi: {link} Asante!',
       nudge: 'Habari {name}, ukumbusho kutoka {event}: bado una {balance} ya kulipa. Lipa hapa: {link} Asante!',
       update: 'Kuna habari mpya kutoka {event} kwenye Ahadi. Isome hapa: {link} Asante kwa msaada wako.',
       support_reply: 'Msaada wa Ahadi umejibu ombi lako {ref}. Soma na ujibu hapa: {link} Asante.',
@@ -98,6 +102,7 @@ export const WA_BODIES: Bodies = {
       milestone: 'Habari njema: {event} imefikia {percent}% ya lengo. Tazama dashibodi: {link} Ahadi.',
       invite: 'Umeongezwa kwenye kamati ya {event} kwenye Ahadi. Ingia kwa namba hii ya simu: {link} Karibu!',
       recorded: 'Habari {name}. Familia imerekodi msaada wako wa {amount} kwa {event} kwenye Ahadi. Tafadhali uthibitishe au tuambie kama si sahihi: {link} Asante.',
+      recorded_paid: 'Habari {name}. Familia imerekodi msaada wako wa {amount} kwa {event} kwenye Ahadi, na kwamba tayari umetoa {paid}. Tafadhali uthibitishe au tuambie kama si sahihi: {link} Asante.',
       nudge: 'Habari {name}. Ukumbusho kwa {event}: {balance} ya msaada wako bado haijalipwa. Unaweza kulipa hapa: {link} Asante.',
       update: 'Kuna habari mpya kutoka {event} kwenye Ahadi. Isome hapa: {link} Asante kwa msaada wako.',
       support_reply: 'Msaada wa Ahadi umejibu ombi lako {ref}. Soma na ujibu hapa: {link} Asante.',
@@ -128,7 +133,7 @@ export function allWaTemplates() {
   const seen = new Set<string>();
   const sample: Record<string, string> = {
     name: 'Peter', amount: 'UGX 50,000', balance: 'UGX 200,000', event: "Sarah & John's Wedding", date: '12 Dec 2026',
-    link: 'https://ahadi.app/p/abc123', percent: '50', role: 'Treasurer', ref: 'AH-SUP-7KX2',
+    link: 'https://ahadi.app/p/abc123', percent: '50', role: 'Treasurer', ref: 'AH-SUP-7KX2', paid: 'UGX 20,000',
   };
   for (const lang of ['en', 'sw'] as WaLang[]) {
     for (const variant of ['warm', 'calm'] as WaVariant[]) {

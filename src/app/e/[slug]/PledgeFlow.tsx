@@ -5,6 +5,7 @@ import { Alert, Confetti } from '@/components/Ui';
 import { apiSend, digits, fmtMoney, newIdempotencyKey, useDraft, withCommas } from '@/components/client-utils';
 import { PayOptions, computeQuote, detectNetwork, type PayChoice } from '@/components/PayOptions';
 import { OrganizerLink, PledgeSummary, VerifyPanel, samePhone, usePledgerMe, type Me } from '@/components/PledgerAccess';
+import { tidyPhone } from '@/lib/phone';
 
 interface Props {
   event: { id: string; title: string; currency: string; noun: 'pledge' | 'contribution' | 'support'; confetti: boolean };
@@ -243,7 +244,7 @@ export function PledgeFlow({ event, quickAmounts, fee, tips }: Props) {
             </div>
             <div>
               <label htmlFor="pf-phone" className="label">{t('pf.phone')}</label>
-              <input id="pf-phone" className="input" inputMode="tel" autoComplete="tel" placeholder="0772 123 456" value={d.phone} onChange={(e) => set({ phone: e.target.value })} required />
+              <input id="pf-phone" className="input" inputMode="tel" autoComplete="tel" placeholder="0772 123 456" value={d.phone} onChange={(e) => set({ phone: e.target.value })} onBlur={(e) => set({ phone: tidyPhone(e.target.value) })} required />
               <p className="hint">{t('pf.phoneHint')}</p>
             </div>
             {matched ? (

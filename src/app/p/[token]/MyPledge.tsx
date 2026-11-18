@@ -12,6 +12,8 @@ interface Data {
   pledged: number; paid: number; balance: number; open: boolean;
   pendingChange: number | null;
   payments: { id: string; receiptNo: string | null; amount: number; status: string; date: string }[];
+  /** Money given to the committee directly (recorded by the treasurer), not paid through Ahadi. */
+  offline: { id: string; amount: number; date: string }[];
   noun: string;
   /** Pledges the committee recorded for this person (at a meeting or from a list). */
   recorded: 'pending' | 'confirmed' | 'disputed' | null;
@@ -57,6 +59,9 @@ export function MyPledge({ token, data, fee, tips }: { token: string; data: Data
     router.refresh();
   }
 
+  const givenToCommittee = data.offline.reduce((s, x) => s + x.amount, 0);
+  // "Not my pledge" stays possible until the person has paid through Ahadi themselves.
+  const paidOnline = data.payments.some((p) => ['created', 'pending', 'succeeded', 'refunding'].includes(p.status));
   const pct = data.pledged > 0 ? Math.min(100, Math.round((data.paid / data.pledged) * 100)) : 0;
 
   return (
@@ -75,7 +80,7 @@ export function MyPledge({ token, data, fee, tips }: { token: string; data: Data
         {data.recorded === 'pending' && (
           <div className="mt-4 rounded-xl border-2 border-accent/60 bg-accent-soft/50 p-4">
             <p className="font-semibold">{t('rp.confirmTitle')}</p>
-            <p className="text-sm text-muted mt-1">{t('rp.confirmText')}</p>
+            <p className="text-sm text-muted mt-1">{givenToCommittee > 0 ? t('rp.confirmTextPaid', { paid: fmtMoney(givenToCommittee, data.currency) }) : t('rp.confirmText')}</p>
             <div className="grid sm:grid-cols-2 gap-2 mt-3">
               <button className="btn-primary" disabled={busy} onClick={async () => {
                 setBusy(true);
@@ -84,7 +89,7 @@ export function MyPledge({ token, data, fee, tips }: { token: string; data: Data
                 if (!r.ok) return setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
                 router.refresh();
               }}>{t('rp.yes')}</button>
-              <button className="btn-outline" disabled={busy || data.paid > 0} onClick={async () => {
+              <button className="btn-outline" disabled={busy || paidOnline} onClick={async () => {
                 if (!window.confirm(t('rp.noConfirm'))) return;
                 setBusy(true);
                 const r = await apiSend(`/api/p/${token}/dispute`, {});
@@ -132,7 +137,20 @@ export function MyPledge({ token, data, fee, tips }: { token: string; data: Data
 
       <section className="card p-6">
         <h2 className="font-bold">{t('my.payments')}</h2>
-        {data.payments.length === 0 ? (
+        {data.offline.length > 0 && (
+          <ul className="mt-3 divide-y divide-line">
+            {data.offline.map((p) => (
+              <li key={p.id} className="py-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-semibold">{fmtMoney(p.amount, data.currency)}</p>
+                  <p className="text-xs text-muted">{p.date} · {t('rp.givenToCommittee')}</p>
+                </div>
+                <span className="chip bg-accent-soft text-ink text-xs">{t('rp.notThroughAhadi')}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {data.payments.length === 0 && data.offline.length === 0 ? (
           <p className="text-muted mt-2">{t('my.noPayments')}</p>
         ) : (
           <ul className="mt-3 divide-y divide-line">

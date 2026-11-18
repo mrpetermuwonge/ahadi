@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useT } from '@/components/I18n';
 import { Alert } from '@/components/Ui';
 import { apiSend } from '@/components/client-utils';
+import { tidyPhone } from '@/lib/phone';
 
 type Kind = 'phone' | 'email';
 type Step = 'choose' | 'enter' | 'code';
@@ -94,7 +95,7 @@ export function LoginForm({ next, google, initialError }: { next: string | null;
               <label htmlFor="ident" className="label">{t(kind === 'phone' ? 'login.phone' : 'login.email')}</label>
               {kind === 'phone' ? (
                 <input id="ident" className="input text-lg" inputMode="tel" autoComplete="tel" placeholder="0772 123 456"
-                  value={value} onChange={(e) => setValue(e.target.value)} required autoFocus />
+                  value={value} onChange={(e) => setValue(e.target.value)} onBlur={(e) => setValue(tidyPhone(e.target.value))} required autoFocus />
               ) : (
                 <input id="ident" type="email" className="input text-lg" inputMode="email" autoComplete="email" placeholder="name@gmail.com"
                   value={value} onChange={(e) => setValue(e.target.value)} required autoFocus />

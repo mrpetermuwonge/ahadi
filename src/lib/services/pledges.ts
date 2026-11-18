@@ -298,5 +298,14 @@ export async function getPledgeView(db: Db, token: string) {
     [p.id],
   );
   const [pendingChange] = await db.query(`SELECT * FROM pledge_change_requests WHERE pledge_id=$1 AND status='pending'`, [p.id]);
-  return { pledge: p, balance, payments, pendingChange: pendingChange ?? null };
+  // Money the treasurer recorded as given to the committee (cash, bank, mobile money to them): not through Ahadi.
+  const offline = await db.query<{ id: string; amount: number; created_at: string }>(
+    `SELECT j.id, j.created_at, (-SUM(le.amount))::bigint AS amount
+       FROM ledger_journals j JOIN ledger_entries le ON le.journal_id=j.id
+      WHERE le.pledge_id=$1 AND le.account='receivable' AND j.kind='manual_payment'
+        AND NOT EXISTS (SELECT 1 FROM ledger_journals r WHERE r.reverses_id=j.id)
+      GROUP BY j.id, j.created_at ORDER BY j.created_at DESC`,
+    [p.id],
+  );
+  return { pledge: p, balance, payments, offline, pendingChange: pendingChange ?? null };
 }

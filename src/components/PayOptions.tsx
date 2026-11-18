@@ -1,6 +1,7 @@
 'use client';
 import { useT } from './I18n';
 import { fmtMoney } from './client-utils';
+import { tidyPhone } from '@/lib/phone';
 
 export type Method = 'mtn' | 'airtel' | 'card';
 export interface PayChoice {
@@ -59,7 +60,7 @@ export function PayOptions({
       {value.method !== 'card' && (
         <div>
           <label htmlFor="payPhone" className="label">{t('pf.payPhone')}</label>
-          <input id="payPhone" className="input" inputMode="tel" autoComplete="tel" value={value.payPhone} onChange={(e) => set({ payPhone: e.target.value })} />
+          <input id="payPhone" className="input" inputMode="tel" autoComplete="tel" value={value.payPhone} onChange={(e) => set({ payPhone: e.target.value })} onBlur={(e) => set({ payPhone: tidyPhone(e.target.value) })} />
         </div>
       )}
       {tips.length > 0 && (

@@ -1048,8 +1048,8 @@ describe('meeting pledges, reminders, updates and support (v1.26)', () => {
     const { parsePledgeList } = await import('@/lib/services/committeePledges');
     const withHeader = await parsePledgeList(new TextEncoder().encode('Name,Phone,Amount,Due date\n"Okello, Peter",0772123456,"100,000",\nAnn,0701234567,UGX 50000,2027-01-01\nBob,0700000000,abc,\n'), 'list.csv');
     expect(withHeader.rows).toEqual([
-      { name: 'Okello, Peter', phone: '0772123456', amount: 100000, dueDate: null },
-      { name: 'Ann', phone: '0701234567', amount: 50000, dueDate: '2027-01-01' },
+      { name: 'Okello, Peter', phone: '0772123456', amount: 100000, dueDate: null, paid: 0, paidVia: 'cash' },
+      { name: 'Ann', phone: '0701234567', amount: 50000, dueDate: '2027-01-01', paid: 0, paidVia: 'cash' },
     ]);
     expect(withHeader.errors).toEqual([{ row: 4, error: 'invalid_amount' }]);
     const noHeader = await parsePledgeList(new TextEncoder().encode('Mary,0772000001,20000'), 'x.csv');
@@ -1105,5 +1105,57 @@ describe('meeting pledges, reminders, updates and support (v1.26)', () => {
     const v = await requestByToken(db, token);
     expect(v!.status).toBe('open');
     expect(v!.messages.map((x: any) => x.from_staff)).toEqual([false, true, false]);
+  });
+});
+
+describe('meeting pledges already paid to the committee (v1.27)', () => {
+  it('money given to the committee is collected offline: not withdrawable, no Ahadi fee, no reminders', async () => {
+    const { recordPledges } = await import('@/lib/services/committeePledges');
+    const owner = await mkUser('+256700001201');
+    const e = await mkEvent(owner);
+    const r = await recordPledges(db, e.id, owner.id, [
+      { name: 'Paid Full', phone: '0734 545 601', amount: 100000, paid: 100000, paidVia: 'cash' },
+      { name: 'Paid Part', phone: '0734545602', amount: 80000, paid: 30000, paidVia: 'mobile_money' },
+      { name: 'Not Paid', phone: '0734545603', amount: 50000 },
+      { name: 'Too Much', phone: '0734545604', amount: 10000, paid: 20000 },
+    ], 'committee', { canRecordCash: true });
+    expect(r.added).toBe(3);
+    expect(r.errors).toEqual([{ row: 4, error: 'paid_more_than_pledge' }]);
+    const tot = await eventTotals(db, e.id);
+    expect(tot).toMatchObject({ pledged: 230000, collected: 130000, collectedOffline: 130000, collectedOnline: 0, outstanding: 100000, available: 0 });
+    const [ahadi] = await db.query(`SELECT COALESCE(SUM(amount),0)::bigint AS n FROM ledger_entries WHERE account LIKE 'ahadi_%'`);
+    expect(Number(ahadi.n)).toBe(0);
+    expect(await unbalancedJournals(db)).toEqual([]);
+    const rem = await db.query(`SELECT pl.name, COUNT(r.id)::int AS n FROM pledges p JOIN pledgers pl ON pl.id=p.pledger_id LEFT JOIN reminders r ON r.pledge_id=p.id WHERE p.event_id=$1 GROUP BY pl.name ORDER BY pl.name`, [e.id]);
+    expect(rem.find((x: any) => x.name === 'Paid Full').n).toBe(0);
+    const msgs = await db.query(`SELECT purpose FROM messages_log WHERE event_id=$1 ORDER BY purpose`, [e.id]);
+    expect(msgs.map((m: any) => m.purpose)).toEqual(['recorded', 'recorded_paid', 'recorded_paid']);
+  });
+
+  it('only someone allowed to record cash can say money was already received', async () => {
+    const { recordPledges } = await import('@/lib/services/committeePledges');
+    const owner = await mkUser('+256700001202');
+    const e = await mkEvent(owner);
+    const r = await recordPledges(db, e.id, owner.id, [{ name: 'Jane', phone: '0734545605', amount: 10000, paid: 10000 }], 'committee', { canRecordCash: false });
+    expect(r).toMatchObject({ added: 0, errors: [{ row: 1, error: 'cash_needs_treasurer' }] });
+  });
+
+  it('"not my pledge" undoes committee cash too and flags it for Trust & safety', async () => {
+    const { recordPledges, disputeRecordedPledge } = await import('@/lib/services/committeePledges');
+    const owner = await mkUser('+256700001203');
+    const e = await mkEvent(owner);
+    await recordPledges(db, e.id, owner.id, [{ name: 'Denies It', phone: '0734545606', amount: 60000, paid: 60000 }], 'committee', { canRecordCash: true });
+    const [p] = await db.query(`SELECT access_token FROM pledges WHERE event_id=$1`, [e.id]);
+    await disputeRecordedPledge(db, p.access_token);
+    expect(await eventTotals(db, e.id)).toMatchObject({ pledged: 0, collected: 0, collectedOffline: 0 });
+    expect(await unbalancedJournals(db)).toEqual([]);
+    const flags = await db.query(`SELECT reason FROM reports WHERE event_id=$1`, [e.id]);
+    expect(flags[0].reason).toMatch(/^cash_disputed/);
+  });
+
+  it('reads a Paid column, and "Amount paid" is not mistaken for the pledge amount', async () => {
+    const { parsePledgeList } = await import('@/lib/services/committeePledges');
+    const a = await parsePledgeList(new TextEncoder().encode('Name,Phone,Pledge amount,Amount paid\nAnn,0734545607,100000,40000\nBob,0734545608,50000,\n'), 'l.csv');
+    expect(a.rows.map((r) => [r.amount, r.paid])).toEqual([[100000, 40000], [50000, 0]]);
   });
 });

@@ -180,9 +180,9 @@ export async function eventTotals(q: Db, eventId: string): Promise<EventTotals> 
               WHERE event_id=$1 AND account='receivable' GROUP BY pledge_id) x`,
     [eventId],
   );
-  const pledged = -b('pledge_income');
+  const pledged = -b('pledge_income') + 0; // + 0 turns -0 into 0
   const collectedOffline = b('offline_cash');
-  const collected = pledged - b('receivable');
+  const collected = pledged - b('receivable') + 0;
   return {
     pledged,
     collected,

@@ -23,7 +23,7 @@ export const COUNTRIES: Record<CountryCode, CountryConfig> = {
     minorUnits: 0,
     dialCode: '256',
     nationalLength: 9,
-    mobilePrefixes: ['70', '71', '72', '74', '75', '76', '77', '78', '79'],
+    mobilePrefixes: ['7'], // every 07xx number (MTN, Airtel, Lyca, UTL and new ranges such as 073x)
     timezone: 'Africa/Kampala',
     quickAmounts: [20000, 50000, 100000],
     enabled: true,

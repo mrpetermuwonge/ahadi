@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useT } from './I18n';
 import { Alert } from './Ui';
 import { apiSend } from './client-utils';
+import { tidyPhone } from '@/lib/phone';
 
 /** For email / Google accounts: add and verify a phone number with a WhatsApp code. */
 export function AddPhone() {
@@ -34,7 +35,7 @@ export function AddPhone() {
       {!sent ? (
         <div>
           <label htmlFor="ap-phone" className="label">{t('login.phone')}</label>
-          <input id="ap-phone" className="input" inputMode="tel" autoComplete="tel" placeholder="0772 123 456" required value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <input id="ap-phone" className="input" inputMode="tel" autoComplete="tel" placeholder="0772 123 456" required value={phone} onChange={(e) => setPhone(e.target.value)} onBlur={(e) => setPhone(tidyPhone(e.target.value))} />
         </div>
       ) : (
         <>

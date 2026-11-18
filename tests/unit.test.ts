@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizePhone, detectNetwork } from '@/lib/phone';
+import { normalizePhone, detectNetwork, tidyPhone } from '@/lib/phone';
 import { formatMoney, parseAmount, computeFee } from '@/lib/money';
 import { chargedAmount, paymentLines, pledgeLines, manualPaymentLines, pledgeState } from '@/lib/ledger';
 import { inQuietHours, nextAllowedTime, zonedTime } from '@/lib/time';
@@ -17,6 +17,15 @@ describe('phone numbers', () => {
     expect(normalizePhone('0412 123 456')).toBeNull();
     expect(normalizePhone('07721234')).toBeNull();
     expect(normalizePhone('hello')).toBeNull();
+  });
+
+  it('accepts every 07xx number and tidies what people type', () => {
+    for (const f of ['0734545678', '0734 545 678', '+256734545678', '256 734-545-678', '+256 0734 545 678', 'O734545678', '734545678']) {
+      expect(normalizePhone(f)).toBe('+256734545678');
+      expect(tidyPhone(f)).toBe('0734 545 678');
+    }
+    expect(normalizePhone('0712345678')).toBe('+256712345678');
+    expect(tidyPhone('0772 12345')).toBe('0772 12345'); // too short: left as typed so the person can fix it
   });
   it('detects networks', () => {
     expect(detectNetwork('+256772123456')).toBe('mtn');

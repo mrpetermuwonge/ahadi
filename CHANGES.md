@@ -1,8 +1,29 @@
-# Ahadi v1.26 – Changes
+# Ahadi v1.27 – Changes
 
-*18 Nov 2026 · Meeting pledges, link previews, remind everyone, updates to supporters, Help and Support*
+*18 Nov 2026 · Phone numbers fix themselves, meeting pledges already paid, Contact Ahadi on the homepage*
 
-## Latest changes in this version (v1.26)
+## Latest changes in this version (v1.27)
+
+- Phone numbers: every Ugandan 07xx number is now accepted (073x and other new ranges were refused before). Numbers tidy themselves when you leave the box: 0734545678, +256734545678, 256 734-545-678 and +256 0734… all become 0734 545 678. Works on every phone box (pledging, login, committee, meeting pledges, admin).
+- Meeting pledges can now be recorded as "Not yet", "Paid in full" or "Paid part", with how it was paid (cash, mobile money to a committee member, bank). Excel/CSV lists can have an optional Paid column.
+- How it reaches the books: money given to the committee is recorded as collected but "held by the committee" (not money in Ahadi). It counts towards the total and the progress, can never be withdrawn through Ahadi, and has no Ahadi fee; Ahadi's own revenue and cash are untouched. Money paid later through Ahadi follows the normal path (Ahadi fee, withdrawable). Fully paid meeting pledges get no reminders.
+- Separation of duties: only the treasurer (or the organizer when there is no treasurer) can say money was already received. The organizer of an event with a treasurer sees a note instead, and the server refuses it too.
+- Independent check: the person gets a WhatsApp/SMS saying what was recorded as already given and is asked to confirm. Their pledge page lists that money as "Given to the committee · Not through Ahadi". If they say "This is not my pledge", the pledge and the cash recorded on it are undone and Ahadi Trust & safety gets a flag to check where the money is. "Not my pledge" is now only blocked once the person paid through Ahadi themselves.
+- Organizer dashboard: new "Where the money is" card: paid through Ahadi (ready to withdraw / sent), held by the committee, still owed.
+- Contact Ahadi on the homepage: a new section with call, email and website tiles, quick topics and the contact form. Help page shows the same contact tiles next to the form; the footer shows the contact details and a "Contact us" link; the privacy notice names the contact email and phone.
+- Ahadi contact details: www.ahadi.tech, 0200 919 289, ahadi@gmail.com (kept in one place: src/lib/contact.ts).
+- 1 new WhatsApp template (recorded_paid; 23 in total, see docs/whatsapp-templates.md). Small fix: totals never show "-0". 6 new unit tests (83 in total); browser tests now 18, all passing.
+
+---
+
+## Earlier versions (for reference)
+
+Each section below happened in an earlier version, shown newest first.
+
+<!-- Changes made in v1.26 (18 Nov 2026) -->
+### v1.26 · 18 Nov 2026 · Meeting pledges, link previews, remind everyone, updates to supporters, Help and Support
+
+> Happened in **v1.26**, not in this version.
 
 - Pledges made at a meeting: organizers and treasurers can add a pledge for someone, or upload an Excel/CSV list (Name, Phone, Amount, optional Due date; sample file included; checked before anything is saved; up to 500 rows). Each person gets a WhatsApp/SMS with their own link to confirm, pay, or say "This is not my pledge" (then it is removed from the totals and reminders stop; not possible once something was paid). Recorded pledges are marked on the dashboard (waiting / confirmed / not my pledge).
 - Link previews: sharing an event on WhatsApp, Facebook or SMS now shows the event's picture, name and a short line. Events without a picture get a branded preview image with their name. (Previews work once APP_URL is the real public address.)
@@ -12,12 +33,7 @@
 - Admin → Support inbox (all staff; Support may answer): fraud and payment problems first, filters (waiting, answered, resolved, assigned to me), assign to me, answer (the person is told on WhatsApp or email), resolve or reopen, and a link to look up the person's pledges and messages. Waiting requests are counted in the menu.
 - 4 new WhatsApp templates (recorded, nudge, update, support_reply; 19 in total, see docs/whatsapp-templates.md), editable SMS wording for each.
 - Database change: migration 013. 5 new unit tests (78 in total); browser tests now 17, all passing.
-
----
-
-## Earlier versions (for reference)
-
-Each section below happened in an earlier version, shown newest first.
+<!-- End of v1.26 -->
 
 <!-- Changes made in v1.25 (18 Nov 2026) -->
 ### v1.25 · 18 Nov 2026 · Demo logos and event pictures, admin portal reorganised and completed

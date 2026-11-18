@@ -7,14 +7,24 @@ import { COUNTRIES, type CountryCode } from './countries';
  */
 export function normalizePhone(input: string, country: CountryCode = 'UG'): string | null {
   const c = COUNTRIES[country];
-  let d = (input || '').replace(/[\s\-().]/g, '');
+  // Forgive the usual typing slips: spaces, dashes, dots, brackets, slashes, the letter O for zero.
+  let d = (input || '').trim().replace(/[oO]/g, '0').replace(/[\s\-().\/_,]/g, '');
   if (d.startsWith('+')) d = d.slice(1);
   if (d.startsWith('00')) d = d.slice(2);
-  if (d.startsWith(c.dialCode)) d = d.slice(c.dialCode.length);
-  else if (d.startsWith('0')) d = d.slice(1);
+  if (d.startsWith(c.dialCode) && d.length > c.nationalLength) d = d.slice(c.dialCode.length);
+  if (d.startsWith('0')) d = d.slice(1); // 0772… and also +256 0772…
   if (!/^\d+$/.test(d) || d.length !== c.nationalLength) return null;
   if (!c.mobilePrefixes.some((p) => d.startsWith(p))) return null;
   return `+${c.dialCode}${d}`;
+}
+
+/**
+ * Tidy what someone typed into the usual 0772 123 456 form (used when they leave a phone box), so
+ * "0734545678", "+256734545678" and "256 734-545-678" all become "0734 545 678". Unknown input is left as typed.
+ */
+export function tidyPhone(input: string, country: CountryCode = 'UG'): string {
+  const n = normalizePhone(input, country);
+  return n ? formatPhone(n) : input;
 }
 
 /** 0772 123 456 style for display */

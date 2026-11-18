@@ -5,20 +5,24 @@ import { useT } from '@/components/I18n';
 import { Alert } from '@/components/Ui';
 import { apiSend, digits, fmtMoney, withCommas } from '@/components/client-utils';
 import { compressImage, uploadFile } from '@/components/upload';
+import { tidyPhone } from '@/lib/phone';
 
 type Msg = { kind: 'ok' | 'bad' | 'info'; text: string } | null;
 type Result = { added: number; duplicates: string[]; errors: { row: number; error: string }[] };
 
 /** Record a pledge made at a meeting, or upload a whole list (Excel/CSV). Each person is asked to confirm. */
-export function RecordPledges({ eventId, currency }: { eventId: string; currency: string }) {
+export function RecordPledges({ eventId, currency, canRecordCash }: { eventId: string; currency: string; canRecordCash: boolean }) {
   const { t } = useT();
   const router = useRouter();
   const [open, setOpen] = useState<'one' | 'list' | null>(null);
-  const [f, setF] = useState({ name: '', phone: '', amount: '', due: '' });
+  const empty = { name: '', phone: '', amount: '', due: '', paidMode: 'none' as 'none' | 'full' | 'part', paid: '', via: 'cash' as 'cash' | 'bank' | 'mobile_money' };
+  const [f, setF] = useState(empty);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<Msg>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<{ rows: { name: string; phone: string; amount: number; dueDate: string | null }[]; errors: { row: number; error: string }[]; total: number } | null>(null);
+  const [preview, setPreview] = useState<{ rows: { name: string; phone: string; amount: number; dueDate: string | null; paid?: number }[]; errors: { row: number; error: string }[]; total: number; paid: number } | null>(null);
+  const amountNum = Number(digits(f.amount)) || 0;
+  const paidNum = f.paidMode === 'full' ? amountNum : f.paidMode === 'part' ? Number(digits(f.paid)) || 0 : 0;
 
   const summary = (r: Result) => [
     t('rp.added', { n: r.added }),
@@ -29,13 +33,17 @@ export function RecordPledges({ eventId, currency }: { eventId: string; currency
   async function addOne(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true); setMsg(null);
-    const r = await apiSend<Result>(`/api/events/${eventId}/record-pledge`, { name: f.name, phone: f.phone, amount: Number(digits(f.amount)), dueDate: f.due || null });
+    if (f.paidMode === 'part' && (paidNum <= 0 || paidNum >= amountNum)) { setBusy(false); return setMsg({ kind: 'bad', text: t('rp.partHint') }); }
+    const r = await apiSend<Result>(`/api/events/${eventId}/record-pledge`, {
+      name: f.name, phone: tidyPhone(f.phone), amount: amountNum, dueDate: f.due || null,
+      ...(paidNum > 0 ? { paid: paidNum, paidVia: f.via } : {}),
+    });
     setBusy(false);
     if (!r.ok) return setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
     if (r.data.errors.length) return setMsg({ kind: 'bad', text: t(`err.${r.data.errors[0]!.error}` as any) });
     if (r.data.duplicates.length) return setMsg({ kind: 'info', text: t('rp.dupOne') });
-    setMsg({ kind: 'ok', text: t('rp.addedOne', { name: f.name }) });
-    setF({ name: '', phone: '', amount: '', due: '' });
+    setMsg({ kind: 'ok', text: paidNum > 0 ? t('rp.addedOnePaid', { name: f.name, paid: fmtMoney(paidNum, currency) }) : t('rp.addedOne', { name: f.name }) });
+    setF(empty);
     router.refresh();
   }
 
@@ -55,7 +63,7 @@ export function RecordPledges({ eventId, currency }: { eventId: string; currency
   }
 
   function template() {
-    const csv = 'Name,Phone,Amount,Due date\nJane Namuli,0772123456,100000,\nJohn Okello,0701234567,50000,2026-12-20\n';
+    const csv = 'Name,Phone,Amount,Due date,Paid\nJane Namuli,0772123456,100000,,\nJohn Okello,0701234567,50000,2026-12-20,20000\n';
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
     a.download = 'ahadi-pledges-template.csv';
@@ -73,13 +81,47 @@ export function RecordPledges({ eventId, currency }: { eventId: string; currency
       {open === 'one' && (
         <form onSubmit={addOne} className="grid sm:grid-cols-2 gap-3 mt-4">
           <div><label className="label" htmlFor="rp-name">{t('pf.name')}</label><input id="rp-name" className="input" maxLength={80} value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} required /></div>
-          <div><label className="label" htmlFor="rp-phone">{t('pf.phone')}</label><input id="rp-phone" className="input" inputMode="tel" placeholder="0772 123 456" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} required /></div>
+          <div><label className="label" htmlFor="rp-phone">{t('pf.phone')}</label><input id="rp-phone" className="input" inputMode="tel" placeholder="0772 123 456" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} onBlur={(e) => setF({ ...f, phone: tidyPhone(e.target.value) })} required /></div>
           <div>
             <label className="label" htmlFor="rp-amount">{t('pf.howMuch')}</label>
             <div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted font-semibold">{currency}</span>
               <input id="rp-amount" className="input pl-16 font-bold" inputMode="numeric" value={withCommas(f.amount)} onChange={(e) => setF({ ...f, amount: digits(e.target.value) })} required /></div>
           </div>
-          <div><label className="label" htmlFor="rp-due">{t('pf.dueDate')}</label><input id="rp-due" type="date" className="input" value={f.due} onChange={(e) => setF({ ...f, due: e.target.value })} /><p className="hint">{t('rp.dueHint')}</p></div>
+          {f.paidMode !== 'full' && <div><label className="label" htmlFor="rp-due">{t('pf.dueDate')}</label><input id="rp-due" type="date" className="input" value={f.due} onChange={(e) => setF({ ...f, due: e.target.value })} /><p className="hint">{t('rp.dueHint')}</p></div>}
+          <fieldset className="sm:col-span-2 rounded-xl border border-line p-3">
+            <legend className="label px-1">{t('rp.paidQ')}</legend>
+            {canRecordCash ? (
+              <>
+                <div className="grid grid-cols-3 gap-2" role="radiogroup">
+                  {(['none', 'full', 'part'] as const).map((m) => (
+                    <button key={m} type="button" role="radio" aria-checked={f.paidMode === m}
+                      className={`${f.paidMode === m ? 'btn-primary' : 'btn-outline'} min-h-[40px] px-2 text-sm`}
+                      onClick={() => setF({ ...f, paidMode: m })}>{t(`rp.paid.${m}` as any)}</button>
+                  ))}
+                </div>
+                {f.paidMode !== 'none' && (
+                  <div className="grid sm:grid-cols-2 gap-3 mt-3">
+                    {f.paidMode === 'part' && (
+                      <div>
+                        <label className="label" htmlFor="rp-paid">{t('rp.paidAmount')}</label>
+                        <div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted font-semibold">{currency}</span>
+                          <input id="rp-paid" className="input pl-16 font-bold" inputMode="numeric" value={withCommas(f.paid)} onChange={(e) => setF({ ...f, paid: digits(e.target.value) })} required /></div>
+                      </div>
+                    )}
+                    <div>
+                      <label className="label" htmlFor="rp-via">{t('rp.via')}</label>
+                      <select id="rp-via" className="input" value={f.via} onChange={(e) => setF({ ...f, via: e.target.value as typeof f.via })}>
+                        <option value="cash">{t('rp.via.cash')}</option>
+                        <option value="mobile_money">{t('rp.via.mobile_money')}</option>
+                        <option value="bank">{t('rp.via.bank')}</option>
+                      </select>
+                    </div>
+                    <p className="sm:col-span-2 text-xs rounded-lg bg-accent-soft/60 p-2">{t('rp.offlineNote', { paid: fmtMoney(paidNum, currency) })}</p>
+                  </div>
+                )}
+              </>
+            ) : <p className="text-sm text-muted">{t('rp.cashTreasurerOnly')}</p>}
+          </fieldset>
           <div className="sm:col-span-2"><button className="btn-primary" disabled={busy}>{busy ? t('a.loading') : t('rp.save')}</button></div>
         </form>
       )}
@@ -91,10 +133,12 @@ export function RecordPledges({ eventId, currency }: { eventId: string; currency
           {preview && (
             <div className="rounded-xl border border-line p-3">
               <p className="font-semibold">{t('rp.previewTitle', { n: preview.rows.length, total: fmtMoney(preview.total, currency) })}</p>
+              {preview.paid > 0 && <p className="text-sm mt-1">{t('rp.previewPaid', { paid: fmtMoney(preview.paid, currency) })}</p>}
+              {preview.paid > 0 && !canRecordCash && <p className="text-sm text-bad mt-1">{t('rp.cashTreasurerOnly')}</p>}
               {preview.errors.length > 0 && <p className="text-sm text-bad mt-1">{t('rp.previewErrors', { rows: preview.errors.map((x) => x.row).join(', ') })}</p>}
               <div className="max-h-56 overflow-auto mt-2">
                 <table className="w-full text-sm"><tbody>{preview.rows.slice(0, 50).map((r, i) => (
-                  <tr key={i} className="border-t border-line"><td className="py-1 pr-2">{r.name}</td><td className="pr-2">{r.phone}</td><td className="text-right pr-2">{fmtMoney(r.amount, currency)}</td><td className="text-muted">{r.dueDate ?? ''}</td></tr>
+                  <tr key={i} className="border-t border-line"><td className="py-1 pr-2">{r.name}</td><td className="pr-2">{r.phone}</td><td className="text-right pr-2">{fmtMoney(r.amount, currency)}</td><td className="text-right pr-2 text-ok">{r.paid ? fmtMoney(r.paid, currency) : ''}</td><td className="text-muted">{r.dueDate ?? ''}</td></tr>
                 ))}</tbody></table>
                 {preview.rows.length > 50 && <p className="text-xs text-muted mt-1">{t('rp.more', { n: preview.rows.length - 50 })}</p>}
               </div>

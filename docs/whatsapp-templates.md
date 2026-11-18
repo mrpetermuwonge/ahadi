@@ -10,7 +10,7 @@ Create each template in **WhatsApp Manager → Message templates → Create temp
 - Languages: English (`en`) and Swahili (`sw`).
 - Code delivery: **Copy code** button. Meta writes the text for authentication templates; you only choose the options.
 
-## 2. Pledge and event messages (category: Utility) — 21 templates × 2 languages
+## 2. Pledge and event messages (category: Utility) — 23 templates × 2 languages
 
 | Template name | Used for | Variables in order |
 | --- | --- | --- |
@@ -25,6 +25,7 @@ Create each template in **WhatsApp Manager → Message templates → Create temp
 | `ahadi_role_changed` | Committee: your role changed or you were removed | {{1}} event, {{2}} role, {{3}} link |
 | `ahadi_owner_changed` | Committee: you are now the organizer | {{1}} event, {{2}} link |
 | `ahadi_recorded_warm` | Pledge recorded by the committee: please confirm (weddings, birthdays, community) | {{1}} name, {{2}} amount, {{3}} event, {{4}} link |
+| `ahadi_recorded_paid_warm` | undefined (weddings, birthdays, community) | {{1}} name, {{2}} amount, {{3}} event, {{4}} paid, {{5}} link |
 | `ahadi_nudge_warm` | Reminder sent by the committee ("remind everyone who owes") (weddings, birthdays, community) | {{1}} name, {{2}} balance, {{3}} event, {{4}} link |
 | `ahadi_update` | New update from the organizer | {{1}} event, {{2}} link |
 | `ahadi_support_reply` | Ahadi support replied | {{1}} ref, {{2}} link |
@@ -34,6 +35,7 @@ Create each template in **WhatsApp Manager → Message templates → Create temp
 | `ahadi_after_calm` | Reminder after the due date (hospital, funeral) | {{1}} name, {{2}} balance, {{3}} event, {{4}} link |
 | `ahadi_thanks_calm` | Payment receipt (hospital, funeral) | {{1}} name, {{2}} amount, {{3}} event, {{4}} link |
 | `ahadi_recorded_calm` | Pledge recorded by the committee: please confirm (hospital, funeral) | {{1}} name, {{2}} amount, {{3}} event, {{4}} link |
+| `ahadi_recorded_paid_calm` | undefined (hospital, funeral) | {{1}} name, {{2}} amount, {{3}} event, {{4}} paid, {{5}} link |
 | `ahadi_nudge_calm` | Reminder sent by the committee ("remind everyone who owes") (hospital, funeral) | {{1}} name, {{2}} balance, {{3}} event, {{4}} link |
 
 ### `ahadi_pledged_warm`
@@ -234,6 +236,24 @@ Habari {{1}}, kamati imerekodi ahadi yako ya {{2}} kwa {{3}} kwenye Ahadi. Tafad
 
 Sample values: {{1}} = Peter · {{2}} = UGX 50,000 · {{3}} = Sarah & John's Wedding · {{4}} = https://ahadi.app/p/abc123
 
+### `ahadi_recorded_paid_warm`
+
+**English (en)**
+
+```
+Hello {{1}}, the committee recorded your pledge of {{2}} to {{3}} on Ahadi, and that you have already given {{4}}. Please confirm it or tell us if it is wrong: {{5}} Thank you!
+```
+
+Sample values: {{1}} = Peter · {{2}} = UGX 50,000 · {{3}} = Sarah & John's Wedding · {{4}} = UGX 20,000 · {{5}} = https://ahadi.app/p/abc123
+
+**Swahili (sw)**
+
+```
+Habari {{1}}, kamati imerekodi ahadi yako ya {{2}} kwa {{3}} kwenye Ahadi, na kwamba tayari umetoa {{4}}. Tafadhali ithibitishe au tuambie kama si sahihi: {{5}} Asante!
+```
+
+Sample values: {{1}} = Peter · {{2}} = UGX 50,000 · {{3}} = Sarah & John's Wedding · {{4}} = UGX 20,000 · {{5}} = https://ahadi.app/p/abc123
+
 ### `ahadi_nudge_warm`
 
 **English (en)**
@@ -395,6 +415,24 @@ Habari {{1}}. Familia imerekodi msaada wako wa {{2}} kwa {{3}} kwenye Ahadi. Taf
 ```
 
 Sample values: {{1}} = Peter · {{2}} = UGX 50,000 · {{3}} = Sarah & John's Wedding · {{4}} = https://ahadi.app/p/abc123
+
+### `ahadi_recorded_paid_calm`
+
+**English (en)**
+
+```
+Hello {{1}}. The family recorded your support of {{2}} for {{3}} on Ahadi, and that you have already given {{4}}. Please confirm it or tell us if it is wrong: {{5}} Thank you.
+```
+
+Sample values: {{1}} = Peter · {{2}} = UGX 50,000 · {{3}} = Sarah & John's Wedding · {{4}} = UGX 20,000 · {{5}} = https://ahadi.app/p/abc123
+
+**Swahili (sw)**
+
+```
+Habari {{1}}. Familia imerekodi msaada wako wa {{2}} kwa {{3}} kwenye Ahadi, na kwamba tayari umetoa {{4}}. Tafadhali uthibitishe au tuambie kama si sahihi: {{5}} Asante.
+```
+
+Sample values: {{1}} = Peter · {{2}} = UGX 50,000 · {{3}} = Sarah & John's Wedding · {{4}} = UGX 20,000 · {{5}} = https://ahadi.app/p/abc123
 
 ### `ahadi_nudge_calm`
 

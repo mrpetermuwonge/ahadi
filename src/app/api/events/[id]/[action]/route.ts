@@ -48,7 +48,7 @@ export const POST = api(async (req, { params }: { params: { id: string; action: 
   if (!needed) return jsonError('not_found', 404);
   const user = await apiUser();
   const db = await getDb();
-  const { event } = await eventAccess(db, params.id, user, needed);
+  const { event, perms } = await eventAccess(db, params.id, user, needed);
   if (STEP_UP.has(params.action)) await requireStepUp();
   const body = await req.json().catch(() => ({}));
   const ensurePledge = async (pledgeId: string) => {
@@ -112,8 +112,12 @@ export const POST = api(async (req, { params }: { params: { id: string; action: 
       break;
     }
     case 'record-pledge': {
-      const b = z.object({ name: z.string().max(80), phone: z.string().max(30), amount: z.number().int().positive().max(1e12), dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable() }).parse(body);
-      return NextResponse.json(await recordPledges(db, event.id, user.id, [b], 'committee'));
+      const b = z.object({
+        name: z.string().max(80), phone: z.string().max(30), amount: z.number().int().positive().max(1e12),
+        dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
+        paid: z.number().int().min(0).max(1e12).optional(), paidVia: z.enum(['cash', 'bank', 'mobile_money']).optional(),
+      }).parse(body);
+      return NextResponse.json(await recordPledges(db, event.id, user.id, [b], 'committee', { canRecordCash: perms['cash.record'] }));
     }
     case 'remind-owing': {
       return NextResponse.json(await remindOwing(db, event.id, user.id));

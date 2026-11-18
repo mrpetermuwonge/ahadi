@@ -52,6 +52,8 @@ export default async function EventDashboard({ params }: { params: { id: string 
         </dl>
       </section>
 
+      {totals.collected + totals.outstanding > 0 && <MoneySplit totals={totals} cur={cur} t={t} />}
+
       {/* What this person can do here, in one line: the organizer, treasurer and helpers each get their own view. */}
       <section className="card p-4 flex gap-3 items-start">
         <svg aria-hidden className="w-6 h-6 shrink-0 text-brand mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" /></svg>
@@ -63,7 +65,7 @@ export default async function EventDashboard({ params }: { params: { id: string 
 
       {(perms['pledges.record'] || owing) && (
         <div className="grid lg:grid-cols-2 gap-4">
-          {perms['pledges.record'] && <RecordPledges eventId={e.id} currency={e.currency} />}
+          {perms['pledges.record'] && <RecordPledges eventId={e.id} currency={e.currency} canRecordCash={perms['cash.record']} />}
           {owing && <RemindOwing eventId={e.id} currency={e.currency} {...owing} />}
         </div>
       )}
@@ -153,5 +155,39 @@ function Stat({ label, value, strong }: { label: string; value: string; strong?:
       <dt className="text-sm text-muted">{label}</dt>
       <dd className={strong ? 'text-xl font-extrabold text-brand' : 'text-lg font-bold'}>{value}</dd>
     </div>
+  );
+}
+
+/**
+ * Where the money is: what came in through Ahadi (Ahadi holds it until it is withdrawn), what the committee holds
+ * itself (cash, bank or mobile money given to them, recorded by the treasurer; never withdrawable through Ahadi,
+ * no Ahadi fee) and what is still owed. The three parts add up to everything pledged.
+ */
+function MoneySplit({ totals, cur, t }: { totals: Awaited<ReturnType<typeof eventTotals>>; cur: string; t: (k: Key, v?: Record<string, string | number>) => string }) {
+  const parts = [
+    { key: 'online', label: t('ms.online'), value: totals.collectedOnline, note: t('ms.onlineNote', { a: formatMoney(totals.available, cur), p: formatMoney(totals.paidOut + totals.payoutPending, cur) }), cls: 'bg-brand' },
+    { key: 'offline', label: t('ms.offline'), value: totals.collectedOffline, note: t('ms.offlineNote'), cls: 'bg-accent' },
+    { key: 'owed', label: t('dash.outstanding'), value: totals.outstanding, note: t('ms.owedNote'), cls: 'bg-line' },
+  ];
+  const sum = parts.reduce((x, p) => x + Math.max(0, p.value), 0) || 1;
+  return (
+    <section className="card p-5" aria-labelledby="ms-title">
+      <h2 id="ms-title" className="font-bold">{t('ms.title')}</h2>
+      <div className="flex h-3 rounded-full overflow-hidden mt-3 bg-line" aria-hidden>
+        {parts.map((p) => p.value > 0 && <div key={p.key} className={p.cls} style={{ width: `${(p.value / sum) * 100}%` }} />)}
+      </div>
+      <dl className="grid sm:grid-cols-3 gap-4 mt-4">
+        {parts.map((p) => (
+          <div key={p.key} className="flex gap-2">
+            <span className={`mt-1.5 w-2.5 h-2.5 rounded-full shrink-0 ${p.cls}`} aria-hidden />
+            <div>
+              <dt className="text-sm text-muted">{p.label}</dt>
+              <dd className="text-lg font-bold">{formatMoney(p.value, cur)}</dd>
+              <dd className="text-xs text-muted">{p.note}</dd>
+            </div>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }

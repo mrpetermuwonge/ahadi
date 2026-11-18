@@ -1,6 +1,7 @@
 import { Logo } from '@/components/Brand';
 import { BackLink } from '@/components/BackLink';
 import { getT } from '@/i18n/server';
+import { CONTACT } from '@/lib/contact';
 
 export const metadata = { title: 'Privacy policy' };
 
@@ -22,7 +23,7 @@ export default function Privacy() {
         <p><b>Who sees what.</b> Organizers see the names, phone numbers and amounts of people who pledged to their event. The public sees only totals, and names only if the organizer makes the list public and the pledger did not choose to stay anonymous. Medical and funeral details are shown only as the organizer chooses.</p>
         <p><b>Your rights.</b> You can download your data or delete it at any time from your personal pledge link. Payment reminders are part of the pledge service and continue until the pledge is paid or the event closes. Amounts stay in the organizer’s ledger without your identity, because financial records must be kept.</p>
         <p><b>Security.</b> Data is encrypted in transit, access is limited by role, and every money action is logged.</p>
-        <p><b>Contact.</b> Questions or requests: contact the Ahadi data protection officer through the support channel listed in the app.</p>
+        <p><b>Contact.</b> Questions or requests: contact the Ahadi data protection officer at {CONTACT.email}, call {CONTACT.phone}, or use the contact form on the <a className="underline" href="/help#contact">Help page</a>.</p>
       </article>
     </div>
   );
