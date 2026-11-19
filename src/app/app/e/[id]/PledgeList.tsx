@@ -23,7 +23,7 @@ export function PledgeList({ eventId, rows, currency, canAdjust }: { eventId: st
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: rows.length, paid: 0, partial: 0, unpaid: 0, overdue: 0 };
-    for (const r of rows) c[r.state]++;
+    for (const r of rows) if (r.recorded !== 'disputed') c[r.state]++; // "Not my pledge": undone, not paid
     return c;
   }, [rows]);
 
@@ -31,7 +31,7 @@ export function PledgeList({ eventId, rows, currency, canAdjust }: { eventId: st
     const term = q.trim().toLowerCase();
     // Phone search matches the last 9 digits so 07xx, +2567xx and 2567xx all find the same person.
     const d = digits(term).replace(/^256/, '').replace(/^0/, '');
-    return rows.filter((r) => (filter === 'all' || r.state === filter) &&
+    return rows.filter((r) => (filter === 'all' || (r.state === filter && r.recorded !== 'disputed')) &&
       (!term || r.name.toLowerCase().includes(term) || (d.length >= 3 && r.phone.replace(/\D/g, '').includes(d))));
   }, [rows, filter, q]);
 
@@ -80,11 +80,11 @@ export function PledgeList({ eventId, rows, currency, canAdjust }: { eventId: st
                 <div className="text-right shrink-0">
                   <p className="font-bold">{fmtMoney(r.amount, currency)}</p>
                   <p className="text-xs text-muted">{t('my.paid')}: {fmtMoney(r.paid, currency)}</p>
-                  <div className="mt-1"><StateChip state={r.state} /></div>
+                  {r.recorded !== 'disputed' && <div className="mt-1"><StateChip state={r.state} /></div>}
                 </div>
               </div>
               {r.balance < 0 && <p className="text-xs text-warn mt-1">{t('dash.overpaid')}: {fmtMoney(-r.balance, currency)}</p>}
-              {canAdjust && (editing === r.id ? (
+              {canAdjust && r.recorded !== 'disputed' && (editing === r.id ? (
                 <div className="mt-2 flex gap-2 items-center">
                   <label className="sr-only" htmlFor={`na-${r.id}`}>{t('dash.newAmount')}</label>
                   <input id={`na-${r.id}`} className="input min-h-[40px]" inputMode="numeric" value={withCommas(newAmount)} onChange={(e) => setNewAmount(digits(e.target.value))} />

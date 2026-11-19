@@ -539,6 +539,8 @@ export const lg: Dict = {
   'grow.cta': 'Tandika omukolo gwo',
 
   'adm.title': 'Abaddukanya',
+  'cr.noCredits': "{n} tebyaweerezeddwa: omukolo guno gukozesezza obubaka bwagwo obw’obwereere era tegulina bubaka bulala bwe gwagula.",
+  'err.pledge_disputed': "Obweyamo buno bwateekebwa nti \"Buno si bweyamo bwange\" ne buggibwawo, n’olwekyo tebuyinza kusasulwa wadde okukyusibwa. Omuntu ayinza okweyama nate okuva ku mukutu gw’omukolo.",
   'ct.nav': "Tukwatagane",
   'ct.reach': "Tutuukeko butereevu",
   'ct.faq': "Soma eby’okuddamu",
@@ -716,7 +718,7 @@ export const lg: Dict = {
   'err.invalid_message': "Wandiika katono okusingawo (waakiri ennukuta 10).",
   'err.invalid_file': "Kozesa fayiro ya Excel (.xlsx) oba CSV erimu Erinnya, Essimu, Omuwendo.",
   'err.invalid_contact': "Wandiika ennamba y’essimu oba email.",
-  'err.already_paid': "Waliwo ekyasasulwa ku bweyamo buno, n’olwekyo tebusobola kusazibwamu wano. Tuukirira obuyambi bwa Ahadi.",
+  'err.already_paid': "Waliwo ekyasasulwa dda ku bweyamo buno nga kuyita mu Ahadi, n’olwekyo tebuyinza kusazibwamu wano. Tuukirira obuyambi bwa Ahadi.",
   'set.k.fee_percent': "Ssente za Ahadi (% ku buli kusasula)",
   'set.k.fee_min': "Ssente entono ennyo (UGX)",
   'set.k.event_pass_price': "Bbeeyi ya Event Pass (UGX)",

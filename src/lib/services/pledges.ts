@@ -78,11 +78,25 @@ export async function createPledge(db: Db, input: PledgeInput) {
     }
 
     const [dup] = await q.query('SELECT * FROM pledges WHERE event_id=$1 AND pledger_id=$2', [input.eventId, pledgerId]);
-    if (dup) return { duplicate: true as const, pledge: dup };
+    if (dup && !dup.disputed_at) return { duplicate: true as const, pledge: dup };
 
     if (!(await hasEventPass(q, input.eventId))) {
-      const [{ n }] = await q.query<{ n: number }>('SELECT COUNT(*)::int AS n FROM pledges WHERE event_id=$1', [input.eventId]);
+      const [{ n }] = await q.query<{ n: number }>('SELECT COUNT(*)::int AS n FROM pledges WHERE event_id=$1 AND disputed_at IS NULL', [input.eventId]);
       if (n >= settings.free_max_pledges) throw new PledgeError('event_full');
+    }
+
+    if (dup) {
+      // This person once said "This is not my pledge" (it was undone). Now they pledge themselves: the same record
+      // is reopened as their own pledge and the new amount is booked again (one pledge per phone per event).
+      const [pledge] = await q.query(
+        `UPDATE pledges SET disputed_at=NULL, confirmed_at=NULL, source='self', recorded_by=NULL, amount=$2, display_name=$3, anonymous=$4,
+                message=$5, message_status='pending', pay_plan=$6, due_date=$7 WHERE id=$1 RETURNING *`,
+        [dup.id, input.amount, name, input.anonymous, message, input.payPlan, dueDate],
+      );
+      await post(q, { eventId: input.eventId, kind: 'pledge_change', sourceType: 'change', sourceId: newId('chg'), currency: event.currency,
+        memo: 'Pledged again after "This is not my pledge"', lines: pledgeLines(dup.id, input.amount) });
+      await audit(q, { actor: null, action: 'pledge.reopened', entityType: 'pledge', entityId: dup.id, eventId: input.eventId, details: { amount: input.amount } });
+      return { duplicate: false as const, created: true, pledge };
     }
 
     const id = newId('plg');
@@ -117,6 +131,8 @@ export async function createPledge(db: Db, input: PledgeInput) {
  * organizer must approve; a reduction by the organizer (actor set) applies immediately.
  */
 async function changePledgeAmountTx(q: Db, pledge: any, newAmount: number, actor: string | null) {
+  // A pledge its owner rejected ("This is not my pledge") is undone in the books: it can no longer be changed.
+  if (pledge.disputed_at) throw new PledgeError('pledge_disputed');
   const current = Number(pledge.amount);
   if (newAmount === current) return { applied: false, pendingApproval: false };
   if (newAmount < current && !actor) {
@@ -182,6 +198,7 @@ export async function recordManualPayment(
   const eventId = await db.tx(async (q) => {
     const [p] = await q.query('SELECT * FROM pledges WHERE id=$1', [a.pledgeId]);
     if (!p) throw new PledgeError('not_found');
+    if (p.disputed_at) throw new PledgeError('pledge_disputed');
     const id = newId('man');
     const { journalId } = await post(q, {
       eventId: p.event_id,
@@ -271,6 +288,9 @@ async function erasePledger(db: Db, pledgerId: string, actor: string | null, via
       await q.query(`UPDATE messages_log SET recipient=$2, body='[deleted on request]' WHERE recipient=$1`, [phone, anonPhone]);
       await q.query(`DELETE FROM otp_codes WHERE identifier=$1`, [phone]);
       await q.query(`DELETE FROM pledger_devices WHERE phone=$1`, [phone]);
+      // Support: name, number and what they wrote go too (the reference number and dates stay for the record).
+      await q.query(`UPDATE support_messages SET body='[deleted on request]' WHERE NOT from_staff AND request_id IN (SELECT id FROM support_requests WHERE phone=$1)`, [phone]);
+      await q.query(`UPDATE support_requests SET name='Deleted', phone=NULL, email=NULL, event_ref=NULL, updated_at=now() WHERE phone=$1`, [phone]);
     }
     await audit(q, { actor, action: 'pledger.deleted', entityType: 'pledger', entityId: pledgerId, details: { via } });
   });

@@ -113,3 +113,20 @@ export const fmtMoney = (amount: number, currency = 'UGX') => `${currency} ${Mat
 /** Digits only, for amount inputs that show thousands separators. */
 export const digits = (s: string) => s.replace(/[^\d]/g, '');
 export const withCommas = (s: string) => (s ? Number(digits(s)).toLocaleString('en-US') : '');
+
+/**
+ * Logout on a shared phone: remove pages the offline helper stored and the form drafts kept on this device
+ * (they can hold a phone number). Never throws.
+ */
+export async function clearDeviceData() {
+  try {
+    navigator.serviceWorker?.controller?.postMessage('ahadi:clear');
+    if (typeof caches !== 'undefined') for (const k of await caches.keys()) await caches.delete(k);
+  } catch { /* nothing stored */ }
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('ahadi:') && k !== 'ahadi:pledgeView') localStorage.removeItem(k);
+    }
+  } catch { /* storage blocked */ }
+}

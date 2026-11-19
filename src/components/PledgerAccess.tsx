@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useT } from './I18n';
 import { Alert, StateChip } from './Ui';
-import { apiGet, apiSend, digits, fmtMoney } from './client-utils';
+import { apiGet, apiSend, digits, fmtMoney, clearDeviceData } from './client-utils';
 import { TypeIcon } from './Brand';
 import { tidyPhone } from '@/lib/phone';
 
@@ -18,6 +18,7 @@ export type Me =
 
 /** End any pledger verification on this browser (the pledger left their portal). */
 export function endPledgerSession() {
+  void clearDeviceData(); // shared phones: nothing private stays on the device
   return apiSend('/api/pledger/forget', {});
 }
 

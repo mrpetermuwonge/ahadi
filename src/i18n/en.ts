@@ -537,6 +537,8 @@ export const en = {
   'grow.cta': 'Start your own event',
 
   'adm.title': 'Admin',
+  'cr.noCredits': "{n} were not sent: this event has used its free messages and has no message credits left.",
+  'err.pledge_disputed': "This pledge was marked \"This is not my pledge\" and undone, so it cannot be paid or changed. The person can pledge again from the event page.",
   'ct.nav': "Contact us",
   'ct.reach': "Reach us directly",
   'ct.faq': "Read the answers",
@@ -714,7 +716,7 @@ export const en = {
   'err.invalid_message': "Please write a little more (at least 10 characters).",
   'err.invalid_file': "Use an Excel (.xlsx) or CSV file with columns Name, Phone, Amount.",
   'err.invalid_contact': "Enter a phone number or an email address.",
-  'err.already_paid': "Something was already paid on this pledge, so it cannot be cancelled here. Contact Ahadi support.",
+  'err.already_paid': "Something was already paid on this pledge through Ahadi, so it cannot be cancelled here. Contact Ahadi support.",
   'set.k.fee_percent': "Ahadi fee (% of each payment)",
   'set.k.fee_min': "Smallest fee (UGX)",
   'set.k.event_pass_price': "Event Pass price (UGX)",

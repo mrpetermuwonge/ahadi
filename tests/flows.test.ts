@@ -384,7 +384,7 @@ describe('WhatsApp messages', () => {
     process.env.WHATSAPP_PROVIDER = 'meta'; // not configured, so WhatsApp refuses
     try {
       await createPledge(db, { eventId: e.id, name: 'Juma', phone: '0772888002', amount: 10000, message: null, anonymous: false, payPlan: 'now', dueDate: null, consent: true });
-      const rows = await db.query(`SELECT channel, status FROM messages_log WHERE recipient='+256772888002' ORDER BY created_at`);
+      const rows = await db.query(`SELECT channel, status FROM messages_log WHERE recipient='+256772888002' ORDER BY created_at, CASE channel WHEN 'whatsapp' THEN 0 ELSE 1 END`);
       expect(rows.map((r) => `${r.channel}:${r.status}`)).toEqual(['whatsapp:failed', 'sms:logged']);
     } finally {
       delete process.env.WHATSAPP_PROVIDER;
@@ -826,8 +826,12 @@ describe('production readiness (v1.22)', () => {
     expect(t.collected).toBe(0);
     expect(t.outstanding).toBe(60000);
     expect(await unbalancedJournals(db)).toEqual([]);
-    const reversals = await db.query(`SELECT COUNT(*)::int AS n FROM ledger_journals WHERE kind='reversal' AND event_id=$1`, [e.id]);
+    // The payment is undone exactly once; the money reserved for the refund is released again (nothing left reserved).
+    const reversals = await db.query(
+      `SELECT COUNT(*)::int AS n FROM ledger_journals r JOIN ledger_journals o ON o.id=r.reverses_id WHERE r.kind='reversal' AND o.kind='payment' AND r.event_id=$1`, [e.id]);
     expect(reversals[0].n).toBe(1);
+    const [held] = await db.query(`SELECT COALESCE(SUM(amount),0)::bigint AS n FROM ledger_entries WHERE event_id=$1 AND account='refund_pending'`, [e.id]);
+    expect(Number(held.n)).toBe(0);
   });
 
   it('money already withdrawn cannot be refunded from Ahadi', async () => {
@@ -1070,7 +1074,7 @@ describe('meeting pledges, reminders, updates and support (v1.26)', () => {
     await saveSetting(db, 'quiet_hours_start', 0, owner.id);
     await saveSetting(db, 'quiet_hours_end', 0, owner.id);
     const r = await remindOwing(db, e.id, owner.id);
-    expect(r).toEqual({ owing: 1, sent: 1 });
+    expect(r).toMatchObject({ owing: 1, sent: 1, noCredits: 0 });
     await expect(remindOwing(db, e.id, owner.id)).rejects.toMatchObject({ code: 'nudge_too_soon' });
   });
 
@@ -1157,5 +1161,200 @@ describe('meeting pledges already paid to the committee (v1.27)', () => {
     const { parsePledgeList } = await import('@/lib/services/committeePledges');
     const a = await parsePledgeList(new TextEncoder().encode('Name,Phone,Pledge amount,Amount paid\nAnn,0734545607,100000,40000\nBob,0734545608,50000,\n'), 'l.csv');
     expect(a.rows.map((r) => [r.amount, r.paid])).toEqual([[100000, 40000], [50000, 0]]);
+  });
+});
+
+
+describe('data flow review fixes (v1.31)', () => {
+  const quietOff = async (who: string) => {
+    const { saveSetting } = await import('@/lib/settings');
+    await saveSetting(db, 'quiet_hours_start', 0, who);
+    await saveSetting(db, 'quiet_hours_end', 0, who);
+  };
+
+  it('a "not my pledge" is out of every flow: no payment, no change, not counted, and the person can pledge again', async () => {
+    const { recordPledges, disputeRecordedPledge } = await import('@/lib/services/committeePledges');
+    const { publicEvent } = await import('@/lib/services/events');
+    const { pledgerSummary } = await import('@/lib/services/pledgerAccess');
+    const owner = await mkUser('+256700001301');
+    const e = await mkEvent(owner);
+    await db.query(`UPDATE events SET privacy='public_list' WHERE id=$1`, [e.id]);
+    await recordPledges(db, e.id, owner.id, [{ name: 'Wrong Person', phone: '0734111301', amount: 50000 }], 'committee');
+    const [p] = await db.query(`SELECT * FROM pledges WHERE event_id=$1`, [e.id]);
+    await disputeRecordedPledge(db, p.access_token);
+    await expect(payFor(p.access_token, 10000)).rejects.toMatchObject({ code: 'pledge_disputed' });
+    await expect(organizerChangeAmount(db, p.id, 20000, owner.id)).rejects.toMatchObject({ code: 'pledge_disputed' });
+    expect((await eventTotals(db, e.id)).pledgeCount).toBe(0);
+    expect((await publicEvent(db, e.slug))!.supporters).toEqual([]);
+    expect((await pledgerSummary(db, '+256734111301')).items).toEqual([]);
+    // Pledging themselves later reopens the same record with the new amount.
+    const again = await pledge(e.id, '0734111301', 30000);
+    expect(again.id).toBe(p.id);
+    expect(again.disputed_at).toBeNull();
+    expect(await eventTotals(db, e.id)).toMatchObject({ pledged: 30000, pledgeCount: 1 });
+    expect(await unbalancedJournals(db)).toEqual([]);
+  });
+
+  it('admin reports read amounts from the books and leave rejected pledges out', async () => {
+    const { recordPledges, disputeRecordedPledge } = await import('@/lib/services/committeePledges');
+    const { platformAnalytics } = await import('@/lib/services/adminAnalytics');
+    const owner = await mkUser('+256700001302');
+    const e = await mkEvent(owner);
+    await recordPledges(db, e.id, owner.id, [{ name: 'Denies', phone: '0734111302', amount: 40000 }], 'committee');
+    await pledge(e.id, '0734111303', 25000, 'later');
+    const [p] = await db.query(`SELECT access_token FROM pledges p JOIN pledgers pl ON pl.id=p.pledger_id WHERE pl.phone='+256734111302'`);
+    await disputeRecordedPledge(db, p.access_token);
+    const a = await platformAnalytics(db, 30);
+    expect(a.pledges).toMatchObject({ n: 1, fully_paid: 0 });
+  });
+
+  it('a withdrawal with an unclear provider error stays "processing" and is settled by asking the provider', async () => {
+    const { requestPayout, adminReview, checkProcessingPayouts } = await import('@/lib/services/payouts');
+    const { providerByName } = await import('@/lib/payments');
+    const owner = await mkUser('+256700001304');
+    const staff = await mkUser('+256700001305', true);
+    const e = await mkEvent(owner);
+    const p = await pledge(e.id, '0734111304', 100000);
+    await webhook((await payFor(p.access_token, 100000)).id, 'succeeded');
+    const [acct] = await db.query(`SELECT id FROM payout_accounts WHERE user_id=$1`, [owner.id]);
+    const avail = (await eventTotals(db, e.id)).available;
+    const po = await requestPayout(db, { eventId: e.id, userId: owner.id, accountId: acct.id, amount: avail });
+    const mock = providerByName('mock');
+    const orig = mock.initiatePayout;
+    mock.initiatePayout = async () => { throw new Error('network timeout'); };
+    try { await adminReview(db, po.id, staff.id, true, 'ok'); } finally { mock.initiatePayout = orig; }
+    let [row] = await db.query(`SELECT status FROM payouts WHERE id=$1`, [po.id]);
+    expect(row.status).toBe('processing'); // NOT failed: the money may already be on its way
+    expect((await eventTotals(db, e.id)).available).toBe(0); // still held: cannot be withdrawn twice
+    // The provider did send it: the job asks and marks it paid.
+    await db.query(`INSERT INTO mock_transactions(ref, kind, reference, amount, currency, status) VALUES ('MOCK-PO-1','payout',$1,$2,'UGX','succeeded')`, [po.id, avail]);
+    await checkProcessingPayouts(db);
+    [row] = await db.query(`SELECT status FROM payouts WHERE id=$1`, [po.id]);
+    expect(row.status).toBe('paid');
+    expect((await eventTotals(db, e.id)).paidOut).toBe(avail);
+  });
+
+  it('a refund reserves the money first, so a withdrawal cannot take it meanwhile; a failed refund releases it', async () => {
+    const { refundPayment } = await import('@/lib/services/payments');
+    const { requestPayout } = await import('@/lib/services/payouts');
+    const { providerByName } = await import('@/lib/payments');
+    const owner = await mkUser('+256700001306');
+    const admin = await mkUser('+256700001307', true);
+    const e = await mkEvent(owner);
+    const p = await pledge(e.id, '0734111306', 50000);
+    const pay = await payFor(p.access_token, 50000);
+    await webhook(pay.id, 'succeeded');
+    const [acct] = await db.query(`SELECT id FROM payout_accounts WHERE user_id=$1`, [owner.id]);
+    const mock = providerByName('mock');
+    const orig = mock.refund!;
+    let during: unknown = null;
+    mock.refund = async () => {
+      during = await requestPayout(db, { eventId: e.id, userId: owner.id, accountId: acct.id, amount: 50000 }).catch((x) => x);
+      return { ok: false };
+    };
+    try {
+      await expect(refundPayment(db, pay.id, admin.id, 'Customer asked for it back')).rejects.toMatchObject({ code: 'refund_failed' });
+    } finally { mock.refund = orig; }
+    expect(during).toMatchObject({ message: 'insufficient_balance' });
+    const [row] = await db.query(`SELECT status FROM payments WHERE id=$1`, [pay.id]);
+    expect(row.status).toBe('succeeded');
+    expect((await eventTotals(db, e.id)).available).toBe(50000); // released again
+    expect(await unbalancedJournals(db)).toEqual([]);
+  });
+
+  it('a late "succeeded" during a refund changes nothing (receipt number kept); a webhook that failed is retried', async () => {
+    const owner = await mkUser('+256700001308');
+    const e = await mkEvent(owner);
+    const p = await pledge(e.id, '0734111308', 20000);
+    const pay = await payFor(p.access_token, 20000);
+    await webhook(pay.id, 'succeeded');
+    const [before] = await db.query(`SELECT receipt_no FROM payments WHERE id=$1`, [pay.id]);
+    await db.query(`UPDATE payments SET status='refunding' WHERE id=$1`, [pay.id]);
+    await webhook(pay.id, 'succeeded', { id: 'late-dup-1' });
+    const [after] = await db.query(`SELECT status, receipt_no FROM payments WHERE id=$1`, [pay.id]);
+    expect(after).toEqual({ status: 'refunding', receipt_no: before.receipt_no });
+
+    const p2 = await pledge(e.id, '0734111309', 15000);
+    const pay2 = await payFor(p2.access_token, 15000);
+    const origTx = db.tx;
+    let failOnce = true;
+    db.tx = (async (fn: any) => { if (failOnce) { failOnce = false; throw new Error('database busy'); } return origTx(fn); }) as any;
+    try {
+      await expect(webhook(pay2.id, 'succeeded', { id: 'retry-me' })).rejects.toThrow('database busy');
+    } finally { db.tx = origTx; }
+    const r = await webhook(pay2.id, 'succeeded', { id: 'retry-me' }); // the provider's retry
+    expect(r.reason).toBe('applied');
+  });
+
+  it('the database itself refuses unknown statuses and unbalanced journals', async () => {
+    await expect(db.query(`INSERT INTO reminders(id, pledge_id, stage, send_at, status) VALUES ('r1', 'nope', 'due', now(), 'whatever')`)).rejects.toThrow();
+    const owner = await mkUser('+256700001310');
+    const e = await mkEvent(owner);
+    await expect(db.tx(async (q) => {
+      await q.query(`INSERT INTO ledger_journals(id, event_id, kind, source_type, source_id) VALUES ('jn_bad', $1, 'pledge', 'test', 'x1')`, [e.id]);
+      await q.query(`INSERT INTO ledger_entries(journal_id, event_id, account, amount, currency) VALUES ('jn_bad', $1, 'receivable', 100, 'UGX')`, [e.id]);
+    })).rejects.toThrow(/does not balance/);
+    const [j] = await db.query(`SELECT COUNT(*)::int AS n FROM ledger_journals WHERE id='jn_bad'`);
+    expect(j.n).toBe(0);
+  });
+
+  it('the daily check flags stuck refunds and stored amounts that differ from the books', async () => {
+    const { runReconciliation } = await import('@/lib/services/jobs');
+    const owner = await mkUser('+256700001311');
+    const e = await mkEvent(owner);
+    const p = await pledge(e.id, '0734111311', 30000);
+    const pay = await payFor(p.access_token, 30000);
+    await webhook(pay.id, 'succeeded');
+    await db.query(`UPDATE payments SET status='refunding', updated_at=now() - interval '2 hours' WHERE id=$1`, [pay.id]);
+    await db.query(`UPDATE pledges SET amount=1 WHERE id=$1`, [p.id]);
+    await runReconciliation(db);
+    const kinds = (await db.query(`SELECT kind FROM reconciliation_issues`)).map((r: any) => r.kind);
+    expect(kinds).toEqual(expect.arrayContaining(['refund_stuck', 'pledge_amount_differs']));
+  });
+
+  it('"Remind everyone" uses the same message allowance as reminders', async () => {
+    const { remindOwing } = await import('@/lib/services/engagement');
+    const { saveSetting } = await import('@/lib/settings');
+    const owner = await mkUser('+256700001312');
+    await quietOff(owner.id);
+    await saveSetting(db, 'free_sms_per_event', 0, owner.id);
+    const e = await mkEvent(owner);
+    await pledge(e.id, '0734111312', 10000, 'later');
+    const r = await remindOwing(db, e.id, owner.id);
+    expect(r).toMatchObject({ owing: 1, sent: 0, noCredits: 1 });
+  });
+
+  it('confirming a committee-recorded pledge records the person\'s own consent', async () => {
+    const { recordPledges, confirmRecordedPledge } = await import('@/lib/services/committeePledges');
+    const { PRIVACY_VERSION } = await import('@/lib/privacy');
+    const owner = await mkUser('+256700001313');
+    const e = await mkEvent(owner);
+    await recordPledges(db, e.id, owner.id, [{ name: 'Kato', phone: '0734111313', amount: 5000 }], 'committee');
+    const [p] = await db.query(`SELECT access_token FROM pledges WHERE event_id=$1`, [e.id]);
+    await confirmRecordedPledge(db, p.access_token);
+    const [pl] = await db.query(`SELECT consent_version FROM pledgers WHERE phone='+256734111313'`);
+    expect(pl.consent_version).toBe(PRIVACY_VERSION);
+  });
+
+  it('adding a phone that was invited as staff keeps the staff role; "delete my data" also clears Support', async () => {
+    const { createRequest } = await import('@/lib/services/supportRequests');
+    const { erasePledgerByPhone } = await import('@/lib/services/pledges');
+    await db.query(`INSERT INTO users(id, phone, is_admin, admin_role) VALUES ('usr_staffinvite', '+256734111314', true, 'trust')`);
+    const c = await requestCode(db, { kind: 'email', value: 'newstaff@example.com' });
+    const me = await verifyLoginCode(db, { kind: 'email', value: 'newstaff@example.com', code: c.devCode! });
+    const p = await requestCode(db, { kind: 'phone', value: '0734111314', purpose: 'add_phone' });
+    await addPhoneToUser(db, me.userId, '0734111314', p.devCode!);
+    const [u] = await db.query(`SELECT is_admin, admin_role FROM users WHERE id=$1`, [me.userId]);
+    expect(u).toEqual({ is_admin: true, admin_role: 'trust' });
+
+    const owner = await mkUser('+256700001315');
+    const e = await mkEvent(owner);
+    await pledge(e.id, '0734111316', 5000);
+    const { token } = await createRequest(db, { name: 'Private Person', contact: '0734111316', topic: 'pledge', message: 'Please help me with my pledge' });
+    await erasePledgerByPhone(db, '0734111316', owner.id);
+    const [r] = await db.query(`SELECT name, phone FROM support_requests WHERE token=$1`, [token]);
+    expect(r).toEqual({ name: 'Deleted', phone: null });
+    const [m] = await db.query(`SELECT body FROM support_messages WHERE NOT from_staff AND request_id=(SELECT id FROM support_requests WHERE token=$1)`, [token]);
+    expect(m.body).toBe('[deleted on request]');
   });
 });

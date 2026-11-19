@@ -283,6 +283,31 @@ export async function runRoleTests(BASE) {
     await page.getByText('Held by the committee').waitFor();
   });
 
+  await test('private pages are never stored on the device; logout clears what was stored', async (page) => {
+    const stored = () => page.evaluate(async () => {
+      const out = [];
+      for (const k of await caches.keys()) for (const r of await (await caches.open(k)).keys()) out.push(new URL(r.url).pathname);
+      return out;
+    });
+    await page.goto('/');
+    await page.evaluate(() => navigator.serviceWorker?.ready);
+    await page.reload(); // now the offline helper is in control
+    await login(page, ORGANIZER);
+    await page.goto('/app');
+    await page.goto('/admin').catch(() => {});
+    await page.goto('/my');
+    await page.goto('/help');
+    await page.waitForTimeout(800);
+    const s = await stored();
+    expect(!s.some((p) => /^\/(app|admin|my|p|pay|r)(\/|$)/.test(p)), `private page stored: ${s.join(', ')}`);
+    expect(s.includes('/help'), `public page not stored: ${s.join(', ')}`);
+    await page.goto('/app');
+    await page.getByRole('button', { name: 'Log out' }).first().click();
+    await page.waitForURL((u) => u.pathname === '/');
+    await page.waitForTimeout(800);
+    expect(!(await stored()).includes('/help'), 'logout did not clear stored pages');
+  });
+
   await test('"Contact us" in the title bar leads to the contact form', async (page) => {
     await page.setViewportSize({ width: 1200, height: 800 });
     await page.goto('/');

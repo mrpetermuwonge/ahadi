@@ -886,7 +886,7 @@ async function AccountsTab({ q, kind, pph, fullPhones }: { q: string; kind: Acco
               <ul className="divide-y divide-line">{found.pledges.map((x, i) => (
                 <li key={i} className="py-1.5 flex flex-wrap justify-between gap-2">
                   <Link className="underline" href={`/app/e/${x.event_id}`}>{x.title}</Link>
-                  <span>{formatMoney(x.amount)} · {t('my.balance')}: <b>{formatMoney(x.balance)}</b>{x.due ? ` · ${x.due}` : ''}</span>
+                  <span>{x.disputed ? <span className="chip bg-line text-muted mr-1">{t('rp.chip.disputed')}</span> : null}{formatMoney(x.amount)} · {t('my.balance')}: <b>{formatMoney(x.balance)}</b>{x.due ? ` · ${x.due}` : ''}</span>
                 </li>))}
               </ul>
             )}

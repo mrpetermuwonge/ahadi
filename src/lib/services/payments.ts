@@ -1,7 +1,7 @@
 import type { Db } from '../db';
 import { APP_URL } from '../config';
 import { newId, receiptNo } from '../ids';
-import { post, paymentLines, chargedAmount, pledgeBalance } from '../ledger';
+import { post, paymentLines, chargedAmount, pledgeBalance, reverse } from '../ledger';
 import { computeFee, formatMoney } from '../money';
 import { providerByName, providersFor, markProviderDown } from '../payments';
 import type { GatewayStatus, Method } from '../payments/types';
@@ -68,6 +68,7 @@ export async function startPledgePayment(db: Db, input: StartPledgePayment) {
     [input.pledgeToken],
   );
   if (!pledge) throw new PaymentError('pledge_not_found');
+  if (pledge.disputed_at) throw new PaymentError('pledge_disputed');
   if (pledge.frozen || pledge.event_status !== 'active') throw new PaymentError('event_closed');
   if (!Number.isSafeInteger(input.amount) || input.amount <= 0) throw new PaymentError('invalid_amount');
   if (input.method !== 'card' && !input.phone) throw new PaymentError('phone_required');
@@ -185,7 +186,8 @@ export async function applyGatewayStatus(
     if (!p) return { changed: false, payment: null, mismatch: false };
 
     if (status === 'succeeded') {
-      if (p.status === 'succeeded' || p.status === 'refunded') return { changed: false, payment: p, mismatch: false };
+      // Already paid (or being / been refunded): a late or repeated "succeeded" changes nothing, receipt number included.
+      if (p.status === 'succeeded' || p.status === 'refunding' || p.status === 'refunded') return { changed: false, payment: p, mismatch: false };
       // Amount and reference must match exactly, otherwise we never mark it paid.
       if (info.amount !== Number(p.charged_amount) || info.currency !== p.currency || (p.provider_ref && info.providerRef && info.providerRef !== p.provider_ref)) {
         await q.query(
@@ -365,58 +367,86 @@ export async function processWebhook(db: Db, providerName: string, rawBody: stri
   );
   if (fresh.length === 0) return { ok: true as const, status: 200, reason: 'duplicate' };
 
-  if (evt.kind === 'payout') {
-    await handlePayoutWebhook(db, evt);
-    return { ok: true as const, status: 200, reason: 'payout' };
+  try {
+    if (evt.kind === 'payout') {
+      await handlePayoutWebhook(db, evt);
+      return { ok: true as const, status: 200, reason: 'payout' };
+    }
+    const payment = await getPayment(db, evt.reference);
+    if (!payment || payment.provider !== providerName) return { ok: true as const, status: 200, reason: 'unknown_reference' };
+    const r = await applyGatewayStatus(db, payment.id, evt.status, { amount: evt.amount, currency: evt.currency, providerRef: evt.providerRef }, 'webhook');
+    return { ok: true as const, status: 200, reason: r.changed ? 'applied' : 'no_change' };
+  } catch (e) {
+    // Not applied: forget we saw it, so the provider's retry is processed instead of being dropped as a duplicate.
+    await db.query(`DELETE FROM webhook_events WHERE provider=$1 AND event_id=$2`, [providerName, evt.eventId]).catch(() => {});
+    throw e;
   }
-  const payment = await getPayment(db, evt.reference);
-  if (!payment || payment.provider !== providerName) return { ok: true as const, status: 200, reason: 'unknown_reference' };
-  const r = await applyGatewayStatus(db, payment.id, evt.status, { amount: evt.amount, currency: evt.currency, providerRef: evt.providerRef }, 'webhook');
-  return { ok: true as const, status: 200, reason: r.changed ? 'applied' : 'no_change' };
 }
 
 /**
  * Admin refund of a succeeded payment (Finance or Super admin, after a fresh code).
- *  1. The payment is claimed first (status 'refunding'), so two clicks can never refund twice.
- *  2. A pledge payment can only be refunded while the event still holds that money (not yet withdrawn).
- *  3. The provider refunds the payer; if that fails the payment goes back to 'succeeded' and nothing changes.
- *  4. A reversing ledger journal undoes the payment: the pledge is owed again, fees and tips are reversed,
- *     an Event Pass is removed, bought message credits are taken back.
+ *  1. Claim and reserve in one locked step: the payment becomes 'refunding' (two clicks can never refund twice)
+ *     and, for a pledge payment, the organizer share moves from organizer_cash to refund_pending. The event row is
+ *     locked like a withdrawal request, so a refund and a withdrawal can never take the same money.
+ *  2. The provider refunds the payer. If that fails, the reservation is undone and the payment is 'succeeded' again.
+ *  3. A reversing journal undoes the payment (pledge owed again, fee and tip reversed, Event Pass removed, bought
+ *     message credits taken back) and the reservation is released, in one transaction.
+ * If the app stops between 2 and 3, the money stays reserved (safe) and the daily check flags the stuck refund.
  */
 export async function refundPayment(db: Db, paymentId: string, adminId: string, reason: string) {
   if (reason.trim().length < 10) throw new PaymentError('reason_required');
   // Conflict of interest: staff never refund payments of an event they are on the committee of.
   const [own] = await db.query(`SELECT 1 FROM payments p JOIN event_members m ON m.event_id=p.event_id WHERE p.id=$1 AND m.user_id=$2`, [paymentId, adminId]);
   if (own) throw new PaymentError('conflict_of_interest');
-  const [claimed] = await db.query(`UPDATE payments SET status='refunding', updated_at=now() WHERE id=$1 AND status='succeeded' RETURNING *`, [paymentId]);
-  if (!claimed) throw new PaymentError('not_refundable');
-  const p = claimed;
-  const back = () => db.query(`UPDATE payments SET status='succeeded', updated_at=now() WHERE id=$1 AND status='refunding'`, [p.id]);
-  try {
-    if (p.purpose === 'pledge' && p.event_id) {
-      const [{ cash }] = await db.query<{ cash: number }>(
-        `SELECT COALESCE(SUM(amount),0)::bigint AS cash FROM ledger_entries WHERE event_id=$1 AND account='organizer_cash'`, [p.event_id]);
-      if (Number(cash) < Number(p.pledge_credit)) throw new PaymentError('refund_exceeds_available');
+
+  const p = await db.tx(async (q) => {
+    const [pay] = await q.query('SELECT * FROM payments WHERE id=$1 FOR UPDATE', [paymentId]);
+    if (!pay || pay.status !== 'succeeded') throw new PaymentError('not_refundable');
+    let holdId: string | null = null;
+    if (pay.purpose === 'pledge' && pay.event_id) {
+      await q.query('SELECT id FROM events WHERE id=$1 FOR UPDATE', [pay.event_id]);
+      const share = Number(pay.pledge_credit) - (pay.fee_covered ? 0 : Number(pay.fee)); // what organizer_cash received
+      const [{ cash }] = await q.query<{ cash: number }>(
+        `SELECT COALESCE(SUM(amount),0)::bigint AS cash FROM ledger_entries WHERE event_id=$1 AND account='organizer_cash'`, [pay.event_id]);
+      if (Number(cash) < share) throw new PaymentError('refund_exceeds_available');
+      if (share > 0) {
+        holdId = (await post(q, {
+          eventId: pay.event_id, kind: 'refund_hold', sourceType: 'refund', sourceId: newId('rfh'), currency: pay.currency, createdBy: adminId,
+          memo: `Reserved for refund of ${pay.receipt_no ?? pay.id}`,
+          lines: [{ account: 'refund_pending', amount: share }, { account: 'organizer_cash', amount: -share }],
+        })).journalId;
+      }
     }
+    const [u] = await q.query(
+      `UPDATE payments SET status='refunding', meta = meta || $2::jsonb, updated_at=now() WHERE id=$1 RETURNING *`,
+      [pay.id, JSON.stringify({ refundHold: holdId })],
+    );
+    return u;
+  });
+  const holdId: string | null = p.meta?.refundHold ?? null;
+
+  try {
     const provider = providerByName(p.provider);
     if (!provider.refund) throw new PaymentError('refund_not_supported');
     const r = await provider.refund(p.provider_ref, Number(p.charged_amount), p.currency);
     if (!r.ok) throw new PaymentError('refund_failed');
   } catch (e) {
-    await back();
+    await db.tx(async (q) => {
+      if (holdId) await reverse(q, holdId, adminId, 'Refund did not go through: reservation released');
+      await q.query(`UPDATE payments SET status='succeeded', updated_at=now() WHERE id=$1 AND status='refunding'`, [p.id]);
+    });
     throw e;
   }
+
   await db.tx(async (q) => {
     await q.query(`UPDATE payments SET status='refunded', updated_at=now() WHERE id=$1`, [p.id]);
+    if (holdId) await reverse(q, holdId, adminId, 'Refund done: reservation released');
     const [j] = await q.query(`SELECT id FROM ledger_journals WHERE source_type='payment' AND source_id=$1 AND kind IN ('payment','pass','credits')`, [p.id]);
-    if (j) {
-      const { reverse } = await import('../ledger');
-      await reverse(q, j.id, adminId, `Refund: ${reason.trim()}`);
-    }
+    if (j) await reverse(q, j.id, adminId, `Refund: ${reason.trim()}`);
     if (p.purpose === 'event_pass') await q.query(`DELETE FROM event_passes WHERE payment_id=$1`, [p.id]);
     if (p.purpose === 'sms_credits') {
       const [c] = await q.query(`SELECT delta FROM credits WHERE ref=$1 AND reason='purchase'`, [p.id]);
-      if (c) await q.query(`INSERT INTO credits(id, user_id, delta, reason, ref) VALUES ($1,$2,$3,'refund',$4)`, [newId('cr'), p.user_id, -Number(c.delta), p.id]);
+      if (c) await q.query(`INSERT INTO credits(id, user_id, delta, reason, ref) VALUES ($1,$2,$3,'refund',$4) ON CONFLICT DO NOTHING`, [newId('cr'), p.user_id, -Number(c.delta), p.id]);
     }
     await audit(q, { actor: adminId, action: 'payment.refunded', entityType: 'payment', entityId: p.id, eventId: p.event_id,
       details: { reason: reason.trim(), amount: Number(p.charged_amount), purpose: p.purpose } });

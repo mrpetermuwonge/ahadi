@@ -8,6 +8,7 @@ import { notify } from '../notify';
 import { getSettings } from '../settings';
 import { inQuietHours } from '../time';
 import { EventError } from './events';
+import { takeMessageCredit } from './jobs';
 
 /**
  * Committee tools to keep supporters engaged:
@@ -51,7 +52,11 @@ export async function remindOwing(db: Db, eventId: string, actor: string) {
   const e = claimed[0];
   const rows = await owing(db, eventId);
   let sent = 0;
+  let noCredits = 0;
+  const round = Date.now();
   for (const r of rows) {
+    // Same allowance as scheduled reminders: free messages first, then message credits.
+    if (!(await takeMessageCredit(db, eventId, 'nudge', `${round}:${r.id}`))) { noCredits = rows.length - sent; break; }
     const res = await notify(db, {
       to: r.phone, stage: 'nudge', eventType: e.type as EventType, locale: r.locale ?? 'en', purpose: 'nudge', eventId,
       vars: { name: String(r.display_name).split(' ')[0] ?? '', balance: formatMoney(Number(r.bal), e.currency), event: e.title, link: `${APP_URL()}/p/${r.access_token}` },
@@ -59,7 +64,7 @@ export async function remindOwing(db: Db, eventId: string, actor: string) {
     if (res.ok) sent++;
   }
   await audit(db, { actor, action: 'pledgers.reminded', entityType: 'event', entityId: eventId, eventId, details: { owing: rows.length, sent } });
-  return { owing: rows.length, sent };
+  return { owing: rows.length, sent, noCredits };
 }
 
 export async function listUpdates(db: Db, eventId: string, includeHidden = false) {
@@ -85,6 +90,7 @@ export async function postUpdate(db: Db, eventId: string, actor: string, input: 
   await db.query(`INSERT INTO event_updates(id, event_id, author_id, body, image_file_id) VALUES ($1,$2,$3,$4,$5)`, [id, eventId, actor, body, input.imageFileId]);
   let notified = 0;
   let notifySkipped = false;
+  let noCredits = 0;
   if (input.notifyPledgers) {
     const [recent] = await db.query(
       `SELECT 1 FROM event_updates WHERE event_id=$1 AND id<>$2 AND notified > 0 AND created_at > now() - interval '${UPDATE_NOTIFY_GAP_HOURS} hours'`, [eventId, id]);
@@ -95,6 +101,7 @@ export async function postUpdate(db: Db, eventId: string, actor: string, input: 
         `SELECT DISTINCT pl.phone, pl.locale FROM pledges p JOIN pledgers pl ON pl.id=p.pledger_id
           WHERE p.event_id=$1 AND p.disputed_at IS NULL AND pl.deleted_at IS NULL AND pl.phone LIKE '+%'`, [eventId]);
       for (const pp of people) {
+        if (!(await takeMessageCredit(db, eventId, 'update', `${id}:${pp.phone}`))) { noCredits = people.length - notified; break; }
         const r = await notify(db, { to: pp.phone, stage: 'update', eventType: e.type as EventType, locale: pp.locale ?? 'en', purpose: 'update', eventId, vars: { event: e.title, link: `${APP_URL()}/e/${e.slug}#updates` } }).catch(() => ({ ok: false }));
         if (r.ok) notified++;
       }
@@ -102,7 +109,7 @@ export async function postUpdate(db: Db, eventId: string, actor: string, input: 
     }
   }
   await audit(db, { actor, action: 'event.update_posted', entityType: 'event_update', entityId: id, eventId, details: { notified, notifySkipped } });
-  return { id, notified, notifySkipped };
+  return { id, notified, notifySkipped, noCredits };
 }
 
 /** The organizer removes their update, or Ahadi staff hide an inappropriate one. Kept for the audit trail. */

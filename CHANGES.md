@@ -1,19 +1,39 @@
-# Ahadi v1.30 – Changes
+# Ahadi v1.31 – Changes
 
-*18 Nov 2026 · Clear Log in button, and saved messages no longer vanish*
+*19 Nov 2026 · Data flow review: 14 fixes to money, privacy and database rules*
 
-## Latest changes in this version (v1.30)
+## Latest changes in this version (v1.31)
 
-- Homepage title bar: the account button is always visible and clear. Signed out it is a green "Log in" button; signed in it shows "My events" with a person icon (the login button was never removed: it changes to "My events" once you are signed in). On small phones it no longer squeezes onto two lines or presses against the logo; the language picker hides its globe on phones to make room.
-- Every page title bar was checked at 6 screen widths (320 to 1280px), signed in and signed out: nothing overlaps, nothing wraps, nothing spills off the screen.
-- Important fix found while testing: in the real (production) app, after saving something (a meeting pledge, a list upload, a Support answer, settings…) the whole page was rebuilt, so the form closed and the "Done" message disappeared before people could read it. Cause: a page-wide loading placeholder at the top level. It was removed (the pages keep their own loading placeholders, and Admin got its own), and every refresh after a save now updates the page in the background.
-- Browser tests now run on a production build, exactly like real users get (they used to run in development mode, which hid the problem above), and each test acts as a separate visitor. 19 browser checks and 83 unit tests pass, twice in a row.
+- "This is not my pledge" now leaves every flow: no payment or amount change on it (that could have made the books show a negative pledge), not counted as a supporter or towards the free-plan limit, not on the public supporters list, not shown as "Paid" in My pledges, and the committee list marks it without counting it as paid. If the person later pledges themselves, the same record reopens with the new amount.
+- Admin analytics and the Admin pledge export now take amounts from the books and leave rejected pledges out (a rejected pledge used to show as fully paid). The staff pledger lookup marks rejected pledges. Event exports leave them out.
+- Withdrawals: a timeout or network error no longer marks a withdrawal as failed (the money may already have been sent, and releasing it could let it be withdrawn twice). It stays "processing" and the background job asks the provider what happened. A withdrawal is only ever started once.
+- Refunds: the money is reserved in the books first (new account refund_pending, with the event locked like a withdrawal), so a refund and a withdrawal can never take the same money. A failed refund releases the reservation. A late or repeated "payment succeeded" during a refund no longer changes the payment or its receipt number.
+- Payment provider messages: if applying one fails, it is no longer marked as seen, so the provider's retry is processed.
+- Privacy: the offline helper now stores only public pages (home, event pages, Help, login, legal). Organizer and admin dashboards, personal pledge links, My pledges, payments, receipts and Support conversations are never stored on the device, older stored copies are deleted, and logging out clears what was stored and the form drafts.
+- Privacy: "Delete my data" now also removes the person's name, number and messages from Support requests. Private ID documents can be opened only by their owner, Super admins and Trust & safety (not Support or Finance).
+- Database rules (migration 014): allowed values for statuses, roles, sources, payment methods, ledger kinds and accounts; no negative fees or tips; and the database itself checks that every ledger journal balances when it is saved. Existing data is left exactly as it was (the rules apply to new and changed rows). Plus 13 indexes for lookups that grow with real use.
+- Daily check now also flags refunds stuck for over an hour, withdrawals stuck for over a day, negative balances, and stored pledge amounts that differ from the books.
+- Message allowance: "Remind everyone" and update messages now count towards the event's free messages and use message credits like reminders; the committee is told how many were not sent.
+- A person recorded by the committee gives their own consent when they confirm the pledge.
+- Adding a phone that was invited as Ahadi staff keeps the staff role, and moves any Support work assigned to it (it used to drop the role or fail).
+- Before the database update the live database was copied to .data/pglite-before-v1.31. 10 new unit tests (93 in total) and 1 new browser test (20 in total), all passing on a production build.
 
 ---
 
 ## Earlier versions (for reference)
 
 Each section below happened in an earlier version, shown newest first.
+
+<!-- Changes made in v1.30 (18 Nov 2026) -->
+### v1.30 · 18 Nov 2026 · Clear Log in button, and saved messages no longer vanish
+
+> Happened in **v1.30**, not in this version.
+
+- Homepage title bar: the account button is always visible and clear. Signed out it is a green "Log in" button; signed in it shows "My events" with a person icon (the login button was never removed: it changes to "My events" once you are signed in). On small phones it no longer squeezes onto two lines or presses against the logo; the language picker hides its globe on phones to make room.
+- Every page title bar was checked at 6 screen widths (320 to 1280px), signed in and signed out: nothing overlaps, nothing wraps, nothing spills off the screen.
+- Important fix found while testing: in the real (production) app, after saving something (a meeting pledge, a list upload, a Support answer, settings…) the whole page was rebuilt, so the form closed and the "Done" message disappeared before people could read it. Cause: a page-wide loading placeholder at the top level. It was removed (the pages keep their own loading placeholders, and Admin got its own), and every refresh after a save now updates the page in the background.
+- Browser tests now run on a production build, exactly like real users get (they used to run in development mode, which hid the problem above), and each test acts as a separate visitor. 19 browser checks and 83 unit tests pass, twice in a row.
+<!-- End of v1.30 -->
 
 <!-- Changes made in v1.29 (18 Nov 2026) -->
 ### v1.29 · 18 Nov 2026 · "Contact us" in the title bar

@@ -61,12 +61,13 @@ export const DATASETS: Dataset[] = [
       { key: 'balance', header: 'Still owed', money: true }, { key: 'plan', header: 'Plan' }, { key: 'due', header: 'Due date', width: 12 },
     ],
     load: (db, f) => db.query(
-      `SELECT to_char(p.created_at,'YYYY-MM-DD') AS created, e.title AS event, p.display_name AS name, pl.phone, p.amount, p.pay_plan AS plan,
-              p.due_date::text AS due,
-              GREATEST(COALESCE((SELECT SUM(amount) FROM ledger_entries le WHERE le.pledge_id=p.id AND le.account='receivable'),0),0)::bigint AS balance,
-              (p.amount - GREATEST(COALESCE((SELECT SUM(amount) FROM ledger_entries le WHERE le.pledge_id=p.id AND le.account='receivable'),0),0))::bigint AS paid
-         FROM pledges p JOIN events e ON e.id=p.event_id JOIN pledgers pl ON pl.id=p.pledger_id
-        WHERE ${range('p.created_at')} AND ${typeOk('e.type')} ORDER BY p.created_at DESC`, args(f)),
+      `SELECT created, event, name, phone, amount, plan, due, GREATEST(recv, 0)::bigint AS balance, (amount - recv)::bigint AS paid
+         FROM (SELECT to_char(p.created_at,'YYYY-MM-DD') AS created, e.title AS event, p.display_name AS name, pl.phone, p.pay_plan AS plan,
+                      p.due_date::text AS due, p.created_at AS at,
+                      (-COALESCE((SELECT SUM(amount) FROM ledger_entries le WHERE le.pledge_id=p.id AND le.account='pledge_income'),0))::bigint AS amount,
+                      COALESCE((SELECT SUM(amount) FROM ledger_entries le WHERE le.pledge_id=p.id AND le.account='receivable'),0)::bigint AS recv
+                 FROM pledges p JOIN events e ON e.id=p.event_id JOIN pledgers pl ON pl.id=p.pledger_id
+                WHERE p.disputed_at IS NULL AND ${range('p.created_at')} AND ${typeOk('e.type')} ) x ORDER BY at DESC`, args(f)),
   },
   {
     key: 'payments', roles: ['super', 'finance'], personal: true,

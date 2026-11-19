@@ -171,10 +171,12 @@ export function RemindOwing({ eventId, currency, count, total, lastAt, nextAt }:
       <button type="button" className="btn-accent mt-3" disabled={busy || count === 0 || !!nextAt} onClick={async () => {
         if (!window.confirm(t('nd.confirm', { n: count }))) return;
         setBusy(true); setMsg(null);
-        const r = await apiSend<{ owing: number; sent: number }>(`/api/events/${eventId}/remind-owing`, {});
+        const r = await apiSend<{ owing: number; sent: number; noCredits?: number }>(`/api/events/${eventId}/remind-owing`, {});
         setBusy(false);
         if (!r.ok) return setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
-        setMsg({ kind: 'ok', text: t('nd.sent', { n: r.data.sent }) });
+        setMsg(r.data.noCredits
+          ? { kind: 'info', text: `${t('nd.sent', { n: r.data.sent })} ${t('cr.noCredits', { n: r.data.noCredits })}` }
+          : { kind: 'ok', text: t('nd.sent', { n: r.data.sent }) });
         startTransition(() => router.refresh());
       }}>{busy ? t('a.loading') : t('nd.button', { n: count })}</button>
       {nextAt && <p className="text-xs text-muted mt-2">{t('nd.next', { d: fmt(nextAt) })}</p>}
@@ -221,10 +223,12 @@ export function UpdatesPanel({ eventId, updates, canPost, staffHide = false }: {
           {msg && <Alert kind={msg.kind}>{msg.text}</Alert>}
           <button type="button" className="btn-primary" disabled={busy || body.trim().length < 3} onClick={async () => {
             setBusy(true); setMsg(null);
-            const r = await apiSend<{ notified: number; notifySkipped: boolean }>(`/api/events/${eventId}/post-update`, { body, imageFileId: image, notifyPledgers: notifyAll });
+            const r = await apiSend<{ notified: number; notifySkipped: boolean; noCredits?: number }>(`/api/events/${eventId}/post-update`, { body, imageFileId: image, notifyPledgers: notifyAll });
             setBusy(false);
             if (!r.ok) return setMsg({ kind: 'bad', text: t(`err.${r.error}` as any) });
-            setMsg({ kind: r.data.notifySkipped ? 'info' : 'ok', text: r.data.notifySkipped ? t('up.postedNoNotify') : t('up.posted', { n: r.data.notified }) });
+            setMsg(r.data.notifySkipped ? { kind: 'info', text: t('up.postedNoNotify') }
+              : r.data.noCredits ? { kind: 'info', text: `${t('up.posted', { n: r.data.notified })} ${t('cr.noCredits', { n: r.data.noCredits })}` }
+              : { kind: 'ok', text: t('up.posted', { n: r.data.notified }) });
             setBody(''); setImage(null);
             startTransition(() => router.refresh());
           }}>{busy ? t('a.loading') : t('up.post')}</button>

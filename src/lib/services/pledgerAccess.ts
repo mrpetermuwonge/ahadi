@@ -134,7 +134,7 @@ export async function pledgerSummary(db: Db, phone: string) {
   if (!p) return { name: null as string | null, items: [] as PledgeSummaryItem[], totals: [] as { currency: string; pledged: number; paid: number; balance: number }[], next: null as PledgeSummaryItem | null };
   const rows = await db.query(
     `SELECT pg.id, pg.access_token, pg.currency, pg.due_date, pg.created_at, e.title, e.slug, e.type, e.status, e.frozen, e.cover_file_id
-       FROM pledges pg JOIN events e ON e.id=pg.event_id WHERE pg.pledger_id=$1 ORDER BY pg.created_at DESC LIMIT 50`,
+       FROM pledges pg JOIN events e ON e.id=pg.event_id WHERE pg.pledger_id=$1 AND pg.disputed_at IS NULL ORDER BY pg.created_at DESC LIMIT 50`,
     [p.id],
   );
   const items: PledgeSummaryItem[] = [];

@@ -11,7 +11,8 @@ export async function findPledger(db: Db, rawPhone: string, fullPhones: boolean)
   const [p] = await db.query(`SELECT id, name, phone, created_at, consent_version, opted_out FROM pledgers WHERE phone=$1`, [phone]);
   if (!p) return { phone: fullPhones ? phone : maskPhone(phone), pledger: null, pledges: [], messages: await messagesFor(db, phone, fullPhones) };
   const pledges = await db.query(
-    `SELECT pg.created_at, pg.amount, pg.pay_plan, pg.due_date::text AS due, pg.access_token, e.title, e.id AS event_id,
+    `SELECT pg.created_at, pg.pay_plan, pg.due_date::text AS due, pg.access_token, e.title, e.id AS event_id, (pg.disputed_at IS NOT NULL) AS disputed,
+            (-COALESCE((SELECT SUM(amount) FROM ledger_entries le WHERE le.pledge_id=pg.id AND le.account='pledge_income'),0))::bigint AS amount,
             GREATEST(COALESCE((SELECT SUM(amount) FROM ledger_entries le WHERE le.pledge_id=pg.id AND le.account='receivable'),0),0)::bigint AS balance
        FROM pledges pg JOIN events e ON e.id=pg.event_id WHERE pg.pledger_id=$1 ORDER BY pg.created_at DESC`,
     [p.id],

@@ -11,6 +11,7 @@ import { normalizePhone } from '../phone';
 import { getSettings } from '../settings';
 import { addDays, localDate } from '../time';
 import { PledgeError, hasEventPass, scheduleReminders } from './pledges';
+import { PRIVACY_VERSION } from '../privacy';
 import { checkMilestones } from './milestones';
 
 /**
@@ -73,10 +74,12 @@ export async function recordPledges(
           // The person did not type this themselves: their consent is "recorded by the committee" until they confirm.
           [pl] = await q.query(`INSERT INTO pledgers(id, phone, name, consent_at, consent_version) VALUES ($1,$2,$3, now(), 'recorded-by-committee') RETURNING *`, [newId('plr'), phone, name]);
         }
-        const [dup] = await q.query('SELECT id FROM pledges WHERE event_id=$1 AND pledger_id=$2', [eventId, pl.id]);
+        const [dup] = await q.query('SELECT id, disputed_at FROM pledges WHERE event_id=$1 AND pledger_id=$2', [eventId, pl.id]);
+        // Someone who said "This is not my pledge" is not recorded again by the committee; they can pledge themselves.
+        if (dup?.disputed_at) return { duplicate: false as const, disputed: true as const };
         if (dup) return { duplicate: true as const };
         if (!(await hasEventPass(q, eventId))) {
-          const [{ n }] = await q.query<{ n: number }>('SELECT COUNT(*)::int AS n FROM pledges WHERE event_id=$1', [eventId]);
+          const [{ n }] = await q.query<{ n: number }>('SELECT COUNT(*)::int AS n FROM pledges WHERE event_id=$1 AND disputed_at IS NULL', [eventId]);
           if (n >= settings.free_max_pledges) throw new PledgeError('event_full');
         }
         const id = newId('plg');
@@ -99,6 +102,7 @@ export async function recordPledges(
         return { duplicate: false as const, id, token };
       });
       if (out.duplicate) { result.duplicates.push(name); continue; }
+      if ('disputed' in out) { result.errors.push({ row: i + 1, error: 'pledge_disputed' }); continue; }
       result.added++;
       toNotify.push({ phone, name, amount: r.amount, paid, token: out.token, pledgeId: out.id });
     } catch (e) {
@@ -181,7 +185,11 @@ function splitCsvLine(line: string): string[] {
 /** The pledger confirms a pledge the committee recorded for them. */
 export async function confirmRecordedPledge(db: Db, token: string) {
   const rows = await db.query(`UPDATE pledges SET confirmed_at=now() WHERE access_token=$1 AND source<>'self' AND confirmed_at IS NULL AND disputed_at IS NULL RETURNING id, event_id`, [token]);
-  if (rows[0]) await audit(db, { actor: null, action: 'pledge.confirmed', entityType: 'pledge', entityId: rows[0].id, eventId: rows[0].event_id });
+  if (rows[0]) {
+    // The committee typed their details; by confirming, the person now gives their own consent (current notice).
+    await db.query(`UPDATE pledgers SET consent_at=now(), consent_version=$2 WHERE id=(SELECT pledger_id FROM pledges WHERE id=$1)`, [rows[0].id, PRIVACY_VERSION]);
+    await audit(db, { actor: null, action: 'pledge.confirmed', entityType: 'pledge', entityId: rows[0].id, eventId: rows[0].event_id });
+  }
   return { ok: true };
 }
 
@@ -210,6 +218,7 @@ export async function disputeRecordedPledge(db: Db, token: string) {
       await reverse(q, j.id, null, 'Pledger said this is not their pledge');
     }
     await q.query(`UPDATE pledges SET disputed_at=now() WHERE id=$1`, [p.id]);
+    await q.query(`UPDATE pledge_change_requests SET status='rejected', decided_at=now() WHERE pledge_id=$1 AND status='pending'`, [p.id]);
     await q.query(`UPDATE reminders SET status='skipped', skip_reason='disputed' WHERE pledge_id=$1 AND status='scheduled'`, [p.id]);
     await audit(q, { actor: null, action: 'pledge.disputed', entityType: 'pledge', entityId: p.id, eventId: p.event_id, details: { cashUndone: cash } });
     if (cash > 0) {

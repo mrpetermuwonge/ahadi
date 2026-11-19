@@ -20,7 +20,8 @@ export interface ExportData {
 /** One loader for every export, using the same ledger functions as the dashboard, so totals always match. */
 export async function loadExport(db: Db, eventId: string): Promise<ExportData> {
   const [event] = await db.query('SELECT * FROM events WHERE id=$1', [eventId]);
-  return { event, totals: await eventTotals(db, eventId), rows: await pledgeRows(db, eventId) };
+  const rows = (await pledgeRows(db, eventId)).filter((r) => r.recorded !== 'disputed'); // undone: not a pledge any more
+  return { event, totals: await eventTotals(db, eventId), rows };
 }
 
 function headers(t: T) {

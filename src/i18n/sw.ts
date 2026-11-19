@@ -539,6 +539,8 @@ export const sw: Dict = {
   'grow.cta': 'Anzisha tukio lako',
 
   'adm.title': 'Usimamizi',
+  'cr.noCredits': "{n} hazikutumwa: tukio hili limetumia jumbe zake za bure na halina salio la jumbe.",
+  'err.pledge_disputed': "Ahadi hii iliwekwa \"Hii si ahadi yangu\" na ikaondolewa, kwa hiyo haiwezi kulipwa wala kubadilishwa. Mtu anaweza kuahidi tena kutoka ukurasa wa tukio.",
   'ct.nav': "Wasiliana nasi",
   'ct.reach': "Wasiliana nasi moja kwa moja",
   'ct.faq': "Soma majibu",
@@ -716,7 +718,7 @@ export const sw: Dict = {
   'err.invalid_message': "Tafadhali andika zaidi kidogo (angalau herufi 10).",
   'err.invalid_file': "Tumia faili la Excel (.xlsx) au CSV lenye safu Jina, Simu, Kiasi.",
   'err.invalid_contact': "Weka namba ya simu au barua pepe.",
-  'err.already_paid': "Tayari kuna kilicholipwa kwa ahadi hii, kwa hiyo haiwezi kufutwa hapa. Wasiliana na msaada wa Ahadi.",
+  'err.already_paid': "Tayari kuna kilicholipwa kwenye ahadi hii kupitia Ahadi, kwa hiyo haiwezi kufutwa hapa. Wasiliana na msaada wa Ahadi.",
   'set.k.fee_percent': "Ada ya Ahadi (% ya kila malipo)",
   'set.k.fee_min': "Ada ndogo kabisa (UGX)",
   'set.k.event_pass_price': "Bei ya Pasi ya tukio (UGX)",

@@ -141,10 +141,14 @@ async function markFailed(q: Db, p: any, reason: string) {
 
 export async function executePayout(db: Db, payoutId: string) {
   const [p] = await db.query('SELECT * FROM payouts WHERE id=$1', [payoutId]);
-  if (!p || p.status !== 'processing' || p.provider_ref) return;
+  if (!p || p.status !== 'processing') return;
   const [acct] = await db.query('SELECT * FROM payout_accounts WHERE id=$1', [p.account_id]);
   const provider = providersFor('mtn', 'UG')[0];
   if (!provider) return; // stays processing; the job retries
+  // Claim the send: only one caller may start it (the request, the approval or the job). Once a provider is set,
+  // the money may already be on its way, so from then on we only ever ASK the provider, never send again.
+  const [claimed] = await db.query(`UPDATE payouts SET provider=$2, updated_at=now() WHERE id=$1 AND status='processing' AND provider IS NULL RETURNING id`, [p.id, provider.name]);
+  if (!claimed) return;
   try {
     const r = await provider.initiatePayout({
       reference: p.id,
@@ -157,11 +161,14 @@ export async function executePayout(db: Db, payoutId: string) {
           : { kind: 'mobile_money', phone: acct.phone },
       description: 'Ahadi payout',
     });
-    await db.query(`UPDATE payouts SET provider=$2, provider_ref=$3, updated_at=now() WHERE id=$1`, [p.id, provider.name, r.providerRef ?? null]);
+    await db.query(`UPDATE payouts SET provider_ref=$2, updated_at=now() WHERE id=$1`, [p.id, r.providerRef ?? null]);
     if (r.status === 'succeeded') await db.tx((q) => markPaid(q, p, r.providerRef));
     else if (r.status === 'failed') await db.tx((q) => markFailed(q, p, 'gateway_declined'));
   } catch (e) {
-    await db.tx((q) => markFailed(q, p, String(e).slice(0, 200)));
+    // A timeout or network error does NOT mean the money was not sent. Releasing it here could let the organizer
+    // withdraw the same money twice, so the payout stays "processing" and the job asks the provider what happened.
+    await db.query(`UPDATE payouts SET failure_reason=$2, updated_at=now() WHERE id=$1`, [p.id, `unclear: ${String(e).slice(0, 180)}`]);
+    await audit(db, { actor: null, action: 'payout.unclear', entityType: 'payout', entityId: p.id, eventId: p.event_id, details: { error: String(e).slice(0, 200) } });
   }
 }
 
@@ -173,16 +180,17 @@ export async function handlePayoutWebhook(db: Db, evt: WebhookEvent) {
   else if (evt.status === 'failed') await db.tx((q) => markFailed(q, p, 'gateway_declined'));
 }
 
-/** Background job: confirm payouts stuck in processing with the gateway. */
+/** Background job: confirm payouts in processing with the gateway (never re-sends one that was already started). */
 export async function checkProcessingPayouts(db: Db) {
   const rows = await db.query(`SELECT * FROM payouts WHERE status='processing'`);
   for (const p of rows) {
-    if (!p.provider_ref) {
-      await executePayout(db, p.id);
+    if (!p.provider) {
+      await executePayout(db, p.id); // approved but never started
       continue;
     }
     const r = await providerByName(p.provider).getPayoutStatus(p.id, p.provider_ref).catch(() => null);
     if (r?.status === 'succeeded') await db.tx((q) => markPaid(q, p, r.providerRef));
     else if (r?.status === 'failed') await db.tx((q) => markFailed(q, p, 'gateway_declined'));
+    // pending or no answer: ask again next time (a long wait is flagged by the daily check)
   }
 }

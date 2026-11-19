@@ -247,8 +247,17 @@ export async function addPhoneToUser(db: Db, userId: string, rawPhone: string, c
         `SELECT (SELECT COUNT(*) FROM sessions WHERE user_id=$1) + (SELECT COUNT(*) FROM events WHERE created_by=$1)::int AS n`,
         [other.id],
       );
-      if (Number(n) > 0 || other.email || other.google_sub) throw new AuthError('phone_in_use');
-      // Placeholder created by a committee invite: move its roles here, then remove it.
+      if (Number(n) > 0 || other.email || other.google_sub || other.suspended_at) throw new AuthError('phone_in_use');
+      // Placeholder created by a committee invite or a staff invite (never logged in): move everything to this account.
+      if (other.admin_role || other.is_admin) {
+        await q.query(`UPDATE users SET is_admin = is_admin OR $2, admin_role = COALESCE(admin_role, $3) WHERE id=$1`, [userId, !!other.is_admin, other.admin_role]);
+      }
+      await q.query(`UPDATE support_requests SET assigned_to=$2 WHERE assigned_to=$1`, [other.id, userId]);
+      await q.query(`UPDATE support_requests SET user_id=$2 WHERE user_id=$1`, [other.id, userId]);
+      await q.query(`UPDATE support_messages SET author_id=$2 WHERE author_id=$1`, [other.id, userId]);
+      await q.query(`UPDATE users SET suspended_by=$2 WHERE suspended_by=$1`, [other.id, userId]);
+      await q.query(`UPDATE pledges SET recorded_by=$2 WHERE recorded_by=$1`, [other.id, userId]);
+      await q.query(`UPDATE files SET owner_user_id=$2 WHERE owner_user_id=$1`, [other.id, userId]);
       await q.query(`DELETE FROM event_members WHERE user_id=$1 AND event_id IN (SELECT event_id FROM event_members WHERE user_id=$2)`, [other.id, userId]);
       await q.query('UPDATE event_members SET user_id=$2 WHERE user_id=$1', [other.id, userId]);
       await q.query('UPDATE event_members SET added_by=$2 WHERE added_by=$1', [other.id, userId]);

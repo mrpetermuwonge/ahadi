@@ -16,6 +16,7 @@ import { newId } from './ids';
  *   fee_expense         event: Ahadi fee absorbed by the organizer (when pledger did not cover it)
  *   ahadi_fee_revenue / ahadi_tip_revenue / ahadi_pass_revenue / ahadi_credit_revenue
  *   payout_pending      event: money held for a payout in progress
+ *   refund_pending      event: money held for a refund in progress (so it cannot be withdrawn meanwhile)
  *   paid_out            event: money sent to the organizer
  */
 export type Account =
@@ -30,6 +31,7 @@ export type Account =
   | 'ahadi_pass_revenue'
   | 'ahadi_credit_revenue'
   | 'payout_pending'
+  | 'refund_pending'
   | 'paid_out';
 
 export interface Line {
@@ -180,6 +182,8 @@ export async function eventTotals(q: Db, eventId: string): Promise<EventTotals> 
               WHERE event_id=$1 AND account='receivable' GROUP BY pledge_id) x`,
     [eventId],
   );
+  // Supporters = pledges still standing ("This is not my pledge" ones are undone and no longer count).
+  const [{ n: active }] = await q.query<{ n: number }>(`SELECT COUNT(*)::int AS n FROM pledges WHERE event_id=$1 AND disputed_at IS NULL`, [eventId]);
   const pledged = -b('pledge_income') + 0; // + 0 turns -0 into 0
   const collectedOffline = b('offline_cash');
   const collected = pledged - b('receivable') + 0;
@@ -194,7 +198,7 @@ export async function eventTotals(q: Db, eventId: string): Promise<EventTotals> 
     payoutPending: b('payout_pending'),
     paidOut: b('paid_out'),
     feesAbsorbed: b('fee_expense'),
-    pledgeCount: Number(per[0].n),
+    pledgeCount: Number(active),
   };
 }
 

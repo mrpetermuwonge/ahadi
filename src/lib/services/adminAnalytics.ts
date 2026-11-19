@@ -44,9 +44,10 @@ export async function platformAnalytics(db: Db, days: number) {
 
   const pledges = await one<{ n: number; people: number; avg: number; fully_paid: number; part_paid: number }>(
     `WITH p AS (
-       SELECT pg.id, pg.amount, pg.pledger_id,
+       SELECT pg.id, pg.pledger_id,
+              (SELECT -COALESCE(SUM(le.amount),0) FROM ledger_entries le WHERE le.pledge_id=pg.id AND le.account='pledge_income') AS amount,
               (SELECT COALESCE(SUM(le.amount),0) FROM ledger_entries le WHERE le.pledge_id=pg.id AND le.account='receivable') AS bal
-         FROM pledges pg WHERE pg.created_at > now() - ($1 || ' days')::interval)
+         FROM pledges pg WHERE pg.disputed_at IS NULL AND pg.created_at > now() - ($1 || ' days')::interval)
      SELECT COUNT(*)::int AS n, COUNT(DISTINCT pledger_id)::int AS people, COALESCE(AVG(amount),0)::bigint AS avg,
             COUNT(*) FILTER (WHERE bal <= 0)::int AS fully_paid,
             COUNT(*) FILTER (WHERE bal > 0 AND bal < amount)::int AS part_paid

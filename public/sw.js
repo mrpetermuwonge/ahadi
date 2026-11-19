@@ -1,8 +1,12 @@
 /* Ahadi service worker: makes the app installable and keeps the shell usable on flaky connections.
    - Static assets: cache first.
-   - Pages: network first, fall back to the cached copy.
-   - API calls and money actions: never cached (always network). */
-const CACHE = 'ahadi-v1';
+   - Public pages (home, event pages, help, legal): network first, fall back to the cached copy.
+   - Private pages (organizer and admin dashboards, personal pledge links, My pledges, payments, receipts,
+     support conversations) are NEVER stored on the device: on a shared phone they must not survive a logout.
+   - API calls and money actions: never cached (always network).
+   The cache name changed from ahadi-v1, so copies of private pages saved by older versions are deleted. */
+const CACHE = 'ahadi-v2';
+const PUBLIC_PAGE = (p) => p === '/' || p === '/help' || p === '/privacy' || p === '/terms' || p === '/login' || /^\/e\/[^/]+\/?$/.test(p);
 const SHELL = ['/', '/icon.svg', '/manifest.webmanifest'];
 
 self.addEventListener('install', (e) => {
@@ -32,6 +36,7 @@ self.addEventListener('fetch', (e) => {
   }
 
   if (req.mode === 'navigate') {
+    if (!PUBLIC_PAGE(url.pathname)) return; // private page: straight to the network, never stored
     e.respondWith(
       fetch(req)
         .then((res) => {
@@ -42,4 +47,9 @@ self.addEventListener('fetch', (e) => {
         .catch(() => caches.match(req).then((hit) => hit || caches.match('/'))),
     );
   }
+});
+
+// Logout: the page asks us to forget every stored page.
+self.addEventListener('message', (e) => {
+  if (e.data === 'ahadi:clear') e.waitUntil(caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k)))));
 });

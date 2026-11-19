@@ -159,12 +159,12 @@ export async function publicEvent(db: Db, slug: string) {
   const totals = await eventTotals(db, e.id);
   const messages = await db.query(
     `SELECT CASE WHEN anonymous THEN NULL ELSE display_name END AS name, message FROM pledges
-      WHERE event_id=$1 AND message IS NOT NULL AND message_status='approved' ORDER BY created_at DESC LIMIT 20`,
+      WHERE event_id=$1 AND disputed_at IS NULL AND message IS NOT NULL AND message_status='approved' ORDER BY created_at DESC LIMIT 20`,
     [e.id],
   );
   const supporters =
     e.privacy === 'public_list'
-      ? await db.query(`SELECT CASE WHEN anonymous THEN NULL ELSE display_name END AS name FROM pledges WHERE event_id=$1 ORDER BY created_at DESC LIMIT 50`, [e.id])
+      ? await db.query(`SELECT CASE WHEN anonymous THEN NULL ELSE display_name END AS name FROM pledges WHERE event_id=$1 AND disputed_at IS NULL ORDER BY created_at DESC LIMIT 50`, [e.id])
       : [];
   const [org] = await db.query(`SELECT u.name FROM users u WHERE u.id=$1`, [e.created_by]);
   return { event: e, totals, messages, supporters, organizerName: org?.name ?? null };
